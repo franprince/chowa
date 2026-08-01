@@ -14,7 +14,14 @@ Chowa is installed in this workspace and is used to develop itself (dogfooding).
 
 When making changes to this codebase, **always follow these conventions**:
 
-### 1. Before Committing
+### 1. Branching & PRs
+
+- **Always create a new branch** for new features, fixes, or tasks before making changes.
+- **Never push directly to `main`, `master`, or `develop`**.
+- Always create a **Pull Request (PR)** against the target branch (`develop` or `main`).
+- **Always ask the user** if they want to create a PR (with description and all) when creating a new branch and committing.
+
+### 2. Before Committing
 
 Run Chowa's diff splitter to check if your changes should be split:
 
