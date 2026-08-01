@@ -20,6 +20,7 @@ import type {
   TransportRequest,
   TransportResponse,
 } from './core/types.js';
+import type { RoutingTarget, AvailableModelInfo } from './router/types.js';
 import { validateToolCall } from './core/validate.js';
 import { getAdapter } from './adapters/registry.js';
 
@@ -33,6 +34,9 @@ export interface CallOptions {
 
   /** Model identifier (e.g. 'claude-sonnet-4-20250514'). */
   readonly model: string;
+
+  /** Fallback provider + model targets if primary fails. */
+  readonly fallbacks?: readonly RoutingTarget[];
 
   /** Tools available for this call. */
   readonly tools: readonly CanonicalTool[];
@@ -97,26 +101,68 @@ export class ChowaClient {
   }
 
   /**
-   * Make a tool-calling LLM request through the normalization layer.
-   *
-   * Flow:
-   * 1. Look up the adapter for the requested provider
-   * 2. Encode tools and messages into provider-native format
-   * 3. Send via transport
-   * 4. Decode response into canonical tool calls + text
-   * 5. Validate tool call arguments against zod schemas (if provided)
-   * 6. On validation failure, append correction message and retry
-   * 7. Return the final result with retry count
+   * Get available models reported by the provider or environment.
+   */
+  getAvailableModels(provider?: string): AvailableModelInfo[] {
+    const defaultModels: AvailableModelInfo[] = [
+      { id: 'gemini-3.6-flash', provider: 'gemini', tier: 'fast', displayName: 'Gemini 3.6 Flash' },
+      { id: 'gemini-3.6-pro', provider: 'gemini', tier: 'balanced', displayName: 'Gemini 3.6 Pro' },
+      { id: 'claude-haiku', provider: 'anthropic', tier: 'fast', displayName: 'Claude Haiku' },
+      { id: 'claude-sonnet-4.6', provider: 'anthropic', tier: 'balanced', displayName: 'Claude Sonnet 4.6' },
+      { id: 'claude-opus-4.6', provider: 'anthropic', tier: 'opus', displayName: 'Claude Opus 4.6' },
+    ];
+
+    if (!provider) return defaultModels;
+    return defaultModels.filter((m) => m.provider === provider);
+  }
+
+  /**
+   * Make a tool-calling LLM request through the normalization layer with automatic failover.
    */
   async call(options: CallOptions): Promise<CallResult> {
+    const targets: RoutingTarget[] = [
+      { provider: options.provider, model: options.model },
+      ...(options.fallbacks ?? []),
+    ];
+
+    let lastError: unknown;
+    let attemptCount = 0;
+
+    for (let tIndex = 0; tIndex < targets.length; tIndex++) {
+      const target = targets[tIndex]!;
+      attemptCount++;
+
+      try {
+        const result = await this.executeCallWithTarget(target, options);
+        return {
+          ...result,
+          usedFallback: tIndex > 0,
+          attemptCount,
+        };
+      } catch (error) {
+        lastError = error;
+        if (tIndex === targets.length - 1) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError ?? new Error('All provider targets failed');
+  }
+
+  private async executeCallWithTarget(
+    target: RoutingTarget,
+    options: CallOptions,
+  ): Promise<CallResult> {
     const {
-      provider,
-      model,
       tools,
       messages,
       maxRetries = 2,
       toolSchemas,
     } = options;
+
+    const provider = target.provider;
+    const model = target.model;
 
     const adapter = getAdapter(provider);
     const encodedTools = adapter.encodeTools(tools);
@@ -164,7 +210,6 @@ export class ChowaClient {
       retriesUsed++;
     }
 
-    // Unreachable, but TypeScript needs it
     return { toolCalls: [], retriesUsed, provider, model };
   }
 

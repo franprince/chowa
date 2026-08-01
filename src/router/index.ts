@@ -8,7 +8,9 @@ export type {
   RoutingRule,
   RoutingPolicy,
   RoutingDecision,
+  ModelTier,
+  AvailableModelInfo,
 } from './types.js';
 
-export { resolve } from './router.js';
+export { resolve, resolveModelTier } from './router.js';
 export type { RoutingOverrides } from './router.js';

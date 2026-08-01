@@ -144,3 +144,30 @@ describe('router.resolve', () => {
     expect(decision.matchedRule!.priority).toBe(40);
   });
 });
+
+describe('resolveModelTier', () => {
+  it('should resolve semantic model tier to matching available model', () => {
+    const { resolveModelTier } = require('../../src/router/router.js');
+    const availableModels = [
+      { id: 'gemini-3.6-flash', provider: 'gemini', tier: 'fast' },
+      { id: 'claude-sonnet-4.6', provider: 'anthropic', tier: 'balanced' },
+    ];
+
+    const target = { provider: 'gemini', model: 'fast' };
+    const resolved = resolveModelTier(target, availableModels);
+
+    expect(resolved.model).toBe('gemini-3.6-flash');
+  });
+
+  it('should return target as-is when model is an explicit string', () => {
+    const { resolveModelTier } = require('../../src/router/router.js');
+    const availableModels = [
+      { id: 'gemini-3.6-flash', provider: 'gemini', tier: 'fast' },
+    ];
+
+    const target = { provider: 'anthropic', model: 'claude-opus-4.6' };
+    const resolved = resolveModelTier(target, availableModels);
+
+    expect(resolved.model).toBe('claude-opus-4.6');
+  });
+});

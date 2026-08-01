@@ -239,6 +239,51 @@ async function loadPolicy() {
   };
 }
 
+async function handleModels(provider?: string): Promise<void> {
+  const { ChowaClient } = await import('./client.js');
+  const client = new ChowaClient();
+  const models = client.getAvailableModels(provider);
+
+  console.log(JSON.stringify(models, null, 2));
+}
+
+async function handleClaudeCodeBridge(): Promise<void> {
+  const { ClaudeCodeBridge } = await import('./integrations/claude-code/bridge.js');
+  const { ChowaClient } = await import('./client.js');
+
+  const client = new ChowaClient();
+  const policy = await loadPolicy();
+  const bridge = new ClaudeCodeBridge(client, policy);
+
+  let input = '';
+  process.stdin.setEncoding('utf-8');
+
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+
+  if (!input.trim()) {
+    console.log(JSON.stringify({
+      success: false,
+      action: 'bridge',
+      error: 'Empty request input provided on stdin',
+    }));
+    return;
+  }
+
+  try {
+    const request = JSON.parse(input.trim());
+    const response = await bridge.handle(request);
+    console.log(JSON.stringify(response, null, 2));
+  } catch (error) {
+    console.log(JSON.stringify({
+      success: false,
+      action: 'bridge',
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -269,6 +314,10 @@ async function main(): Promise<void> {
       await handleRoute(values.kind ?? 'mechanical', values.complexity ?? 'low');
       break;
 
+    case 'models':
+      await handleModels(values.provider);
+      break;
+
     case 'commit':
       await handleCommit();
       break;
@@ -293,6 +342,10 @@ async function main(): Promise<void> {
 
     case 'antigravity-bridge':
       await handleAntigravityBridge();
+      break;
+
+    case 'claude-code-bridge':
+      await handleClaudeCodeBridge();
       break;
 
     default:

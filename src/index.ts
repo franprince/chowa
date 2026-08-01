@@ -66,4 +66,10 @@ export type {
 export { splitDiff, parseDiff, FileBasedClusterStrategy } from './git/diffSplitter.js';
 export { generateCommitMessage, CONVENTIONAL_COMMIT_REGEX } from './git/commitMessage.js';
 export { generatePRDescription } from './git/prDescription.js';
-export { GitOps } from './git/gitOps.js';
+// Integrations
+export { AntigravityBridge } from './integrations/antigravity/bridge.js';
+export type { AntigravityRequest, AntigravityResponse } from './integrations/antigravity/bridge.js';
+
+export { ClaudeCodeBridge } from './integrations/claude-code/bridge.js';
+export type { ClaudeCodeRequest, ClaudeCodeResponse } from './integrations/claude-code/bridge.js';
+

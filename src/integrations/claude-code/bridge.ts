@@ -1,66 +1,35 @@
 /**
- * Antigravity Bridge
+ * Claude Code Bridge
  *
- * Thin integration surface between Antigravity's agent conventions
- * and Chowa's CLI/library API. This module imports from core only —
- * the dependency flows one direction: integrations → core.
+ * Integration surface between Claude Code's agent CLI / tool harness
+ * and Chowa's normalization, routing, and git workflow engine.
  *
- * The bridge translates between Antigravity's request/response shape
- * and Chowa's canonical types, so the core library never needs to
- * know about Antigravity.
+ * Dependencies flow one direction: integrations → core.
  */
 
 import { ChowaClient } from '../../client.js';
 import type { CallResult, CanonicalTool, CanonicalMessage } from '../../core/types.js';
-import { resolve } from '../../router/router.js';
+import { resolve, resolveModelTier } from '../../router/router.js';
 import type { RoutingPolicy, TaskProfile } from '../../router/types.js';
 
-// ---------------------------------------------------------------------------
-// Antigravity request/response shapes
-// ---------------------------------------------------------------------------
-
-/**
- * A request from an Antigravity agent session.
- * This mirrors what Antigravity sends when invoking an external tool/skill.
- */
-export interface AntigravityRequest {
-  /** The action to perform. */
+export interface ClaudeCodeRequest {
   readonly action: 'call' | 'commit' | 'pr' | 'route' | 'models';
-
-  /** Provider to use (optional — will be resolved by router if omitted). */
   readonly provider?: string;
-
-  /** Model to use (optional — will be resolved by router if omitted). */
   readonly model?: string;
-
-  /** Task profile for routing (optional). */
   readonly taskProfile?: TaskProfile;
-
-  /** Tools available for this call (for 'call' action). */
   readonly tools?: readonly CanonicalTool[];
-
-  /** Messages for this call (for 'call' action). */
   readonly messages?: readonly CanonicalMessage[];
-
-  /** Base branch for PR description (for 'pr' action). */
   readonly baseBranch?: string;
 }
 
-/**
- * Response sent back to the Antigravity agent.
- */
-export interface AntigravityResponse {
+export interface ClaudeCodeResponse {
   readonly success: boolean;
   readonly action: string;
   readonly data?: CallResult | Record<string, unknown>;
   readonly error?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Bridge
-// ---------------------------------------------------------------------------
-
-export class AntigravityBridge {
+export class ClaudeCodeBridge {
   private readonly client: ChowaClient;
   private readonly policy: RoutingPolicy;
 
@@ -69,11 +38,7 @@ export class AntigravityBridge {
     this.policy = policy;
   }
 
-  /**
-   * Handle an incoming request from an Antigravity agent.
-   * Routes to the appropriate Chowa functionality.
-   */
-  async handle(request: AntigravityRequest): Promise<AntigravityResponse> {
+  async handle(request: ClaudeCodeRequest): Promise<ClaudeCodeResponse> {
     try {
       switch (request.action) {
         case 'call':
@@ -83,9 +48,9 @@ export class AntigravityBridge {
         case 'models':
           return this.handleModels(request);
         case 'commit':
-          return this.handleCommit();
+          return await this.handleCommit();
         case 'pr':
-          return this.handlePR(request);
+          return await this.handlePR(request);
         default:
           return {
             success: false,
@@ -102,7 +67,7 @@ export class AntigravityBridge {
     }
   }
 
-  private handleModels(request: AntigravityRequest): AntigravityResponse {
+  private handleModels(request: ClaudeCodeRequest): ClaudeCodeResponse {
     const models = this.client.getAvailableModels(request.provider);
     return {
       success: true,
@@ -113,8 +78,29 @@ export class AntigravityBridge {
     };
   }
 
-  private async handleCall(request: AntigravityRequest): Promise<AntigravityResponse> {
-    // Resolve provider/model via router if not explicitly provided
+  private handleRoute(request: ClaudeCodeRequest): ClaudeCodeResponse {
+    const profile: TaskProfile = request.taskProfile ?? {
+      kind: 'mechanical',
+      estimatedComplexity: 'low',
+    };
+
+    const decision = resolve(profile, this.policy);
+    const availableModels = this.client.getAvailableModels();
+    const resolvedTarget = resolveModelTier(decision.target, availableModels);
+
+    return {
+      success: true,
+      action: 'route',
+      data: {
+        target: resolvedTarget,
+        originalTarget: decision.target,
+        matchedRule: decision.matchedRule,
+        reason: decision.reason,
+      },
+    };
+  }
+
+  private async handleCall(request: ClaudeCodeRequest): Promise<ClaudeCodeResponse> {
     let provider = request.provider;
     let model = request.model;
 
@@ -124,8 +110,11 @@ export class AntigravityBridge {
         estimatedComplexity: 'low',
       };
       const decision = resolve(profile, this.policy);
-      provider = provider ?? decision.target.provider;
-      model = model ?? decision.target.model;
+      const availableModels = this.client.getAvailableModels();
+      const resolvedTarget = resolveModelTier(decision.target, availableModels);
+
+      provider = provider ?? resolvedTarget.provider;
+      model = model ?? resolvedTarget.model;
     }
 
     const result = await this.client.call({
@@ -142,26 +131,7 @@ export class AntigravityBridge {
     };
   }
 
-  private handleRoute(request: AntigravityRequest): AntigravityResponse {
-    const profile: TaskProfile = request.taskProfile ?? {
-      kind: 'mechanical',
-      estimatedComplexity: 'low',
-    };
-
-    const decision = resolve(profile, this.policy);
-
-    return {
-      success: true,
-      action: 'route',
-      data: {
-        target: decision.target,
-        matchedRule: decision.matchedRule,
-        reason: decision.reason,
-      },
-    };
-  }
-
-  private async handleCommit(): Promise<AntigravityResponse> {
+  private async handleCommit(): Promise<ClaudeCodeResponse> {
     const { GitOps } = await import('../../git/gitOps.js');
     const { splitDiff } = await import('../../git/diffSplitter.js');
     const { generateCommitMessage } = await import('../../git/commitMessage.js');
@@ -201,7 +171,7 @@ export class AntigravityBridge {
     };
   }
 
-  private async handlePR(request: AntigravityRequest): Promise<AntigravityResponse> {
+  private async handlePR(request: ClaudeCodeRequest): Promise<ClaudeCodeResponse> {
     const { GitOps } = await import('../../git/gitOps.js');
     const { generatePRDescription } = await import('../../git/prDescription.js');
 
@@ -228,4 +198,3 @@ export class AntigravityBridge {
     };
   }
 }
-
