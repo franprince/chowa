@@ -19,12 +19,16 @@ When making changes to this codebase, **always follow these conventions**:
 For all feature requests and non-trivial changes, always follow this 3-stage lifecycle:
 
 1. **Stage 1: Specifications (`spec.md`)**:
-   - Always start by creating a specification artifact (`spec.md` or `specifications.md`).
+   - Always start by creating a specification artifact under
+     `specs/<YYYY-MM-DD>-<slug>/spec.md` — never as a loose root-level file.
+     Add a row to `specs/INDEX.md`. This keeps every iteration's intent as a
+     permanent record instead of the next feature's spec silently
+     overwriting it.
    - Define problem statement, goals, non-goals, input/output schemas, edge cases, and acceptance criteria.
    - Set `RequestFeedback: true` and **obtain explicit user approval on `spec.md`** before moving to Stage 2 (Implementation Plan).
 
 2. **Stage 2: Implementation Plan (`implementation_plan.md`)**:
-   - Once specs are done, create the technical `implementation_plan.md` artifact.
+   - Once specs are done, create the technical `implementation_plan.md` artifact in the same `specs/<YYYY-MM-DD>-<slug>/` directory.
    - Detail architectural changes, files to modify/create, component boundaries, and verification plan.
    - Set `RequestFeedback: true` and **obtain explicit user approval** before writing code.
 
@@ -35,9 +39,11 @@ For all feature requests and non-trivial changes, always follow this 3-stage lif
 
 ### 2. Branching & PR Workflow
 
-- **Always create a new branch** for new features, fixes, or tasks before making changes (never work or push directly on `main`, `master`, or `develop`).
-- **Never push directly to `main`, `master`, or `develop`**.
-- Always create a **Pull Request (PR)** against the target base branch (`develop` or `main`).
+- **Always create a new branch** for new features, fixes, or tasks before making changes — never work or push directly on `main` or `master`.
+- **Branch flow** (unless the user explicitly says otherwise):
+  - `fix/*`, `feat/*`, `docs/*`, `chore/*`, etc. branch from `develop` and PR **against `develop`**.
+  - `release/*` and `hotfix/*` branch from `develop` (hotfix may branch from `main` when patching a live incident) and PR **from there to `main`**.
+  - **Never PR or push directly to `main`/`master`** outside of a `release/*` or `hotfix/*` branch.
 - **Always ask the user** if they want to create a PR (with PR description and all) whenever creating a new branch and committing.
 
 ### 3. Remote Update Checks & Global Sync

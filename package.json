@@ -1,6 +1,6 @@
 {
   "name": "chowa",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "LLM coding harness — tool-call normalization, workflow enforcement, and model routing across providers",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:imports": "bun run scripts/check-imports.ts",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit -p tsconfig.lint.json",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
