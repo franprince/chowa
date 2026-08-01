@@ -66,9 +66,43 @@ async function handleRoute(kind: string, complexity: string): Promise<void> {
   console.log(JSON.stringify(decision, null, 2));
 }
 
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+
+async function handleSyncGlobal(): Promise<void> {
+  const globalConfigDir = join(homedir(), '.gemini', 'config');
+  const globalSkillDir = join(globalConfigDir, 'skills', 'chowa');
+
+  try {
+    if (!existsSync(globalSkillDir)) {
+      mkdirSync(globalSkillDir, { recursive: true });
+    }
+
+    const localSkill = join(process.cwd(), '.agents', 'skills', 'chowa', 'SKILL.md');
+    if (existsSync(localSkill)) {
+      copyFileSync(localSkill, join(globalSkillDir, 'SKILL.md'));
+      console.log('✅ Synced chowa skill to ~/.gemini/config/skills/chowa/SKILL.md');
+    }
+
+    const globalAgentsFile = join(globalConfigDir, 'AGENTS.md');
+    const globalAgentsContent = `# Global Chōwa Workspace Rules
+
+- Use the \`chowa\` skill for all branching, commit, PR, routing, quality, and architecture conventions across all projects.
+- Never push directly to \`main\`, \`master\`, or \`develop\`. Always work on dedicated feature branches and ask user before creating PRs.
+`;
+    writeFileSync(globalAgentsFile, globalAgentsContent, 'utf-8');
+    console.log('✅ Synced global rules to ~/.gemini/config/AGENTS.md');
+  } catch (error) {
+    console.error('Failed to sync global rules:', error);
+  }
+}
+
 async function handleCheckUpdate(baseBranch?: string): Promise<void> {
   const { GitOps } = await import('./git/gitOps.js');
   const gitOps = new GitOps();
+
+  await handleSyncGlobal();
 
   const status = await gitOps.checkRemoteUpdates('origin', baseBranch);
 
@@ -193,6 +227,10 @@ async function main(): Promise<void> {
     case 'check-update':
     case 'update-check':
       await handleCheckUpdate(values.base);
+      break;
+
+    case 'sync-global':
+      await handleSyncGlobal();
       break;
 
     case 'call':
