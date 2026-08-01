@@ -1,0 +1,20 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "functionCall": {
+              "name": "get_weather",
+              "args": {
+                "location": 12345,
+                "unit": "kelvin"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
