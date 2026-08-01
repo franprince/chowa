@@ -18,13 +18,17 @@ import type { CommitInfo, PRDescription, PRType } from './types.js';
 
 /**
  * Classify a branch into a PR type using the documented branch-flow
- * convention: `release/*` / `hotfix/*` → `release`, everything else
- * (including unrecognized prefixes) → `standard`.
+ * convention: `release/*` / `hotfix/*` → `release`, `feat/*` → `feature`,
+ * everything else (including unrecognized prefixes) → `standard`.
  */
 export function detectPRType(branchName: string): PRType {
-  return branchName.startsWith('release/') || branchName.startsWith('hotfix/')
-    ? 'release'
-    : 'standard';
+  if (branchName.startsWith('release/') || branchName.startsWith('hotfix/')) {
+    return 'release';
+  }
+  if (branchName.startsWith('feat/')) {
+    return 'feature';
+  }
+  return 'standard';
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +73,27 @@ Rules:
 - Testing notes should be actionable and specific
 - Only include breakingChanges if there are actual breaking changes (API changes, removed features, etc.)
 - rolloutPlan is required — always provide concrete rollout and rollback steps
+- Respond with ONLY the JSON, no markdown fences or extra text`;
+
+const FEATURE_PR_SYSTEM_PROMPT = `You are a PR description generator for a new-feature branch. Given a list of commit messages and a diff, generate a structured PR description.
+
+You will receive:
+1. A list of commit messages (already in Conventional Commits format)
+2. The full diff against the base branch
+
+Generate a JSON response with this exact structure:
+{
+  "summary": "A 2-3 sentence high-level summary explaining why this capability exists and who it's for, not just what changed",
+  "testing": "Testing notes — what was tested, how to verify, any manual testing needed",
+  "breakingChanges": "Description of breaking changes, or null if none",
+  "rolloutNotes": "How this capability reaches users — is it behind a flag, rolled out gradually, does documentation need updating — required, never null"
+}
+
+Rules:
+- The summary should explain the motivation and user impact, not just the WHAT
+- Testing notes should be actionable and specific
+- Only include breakingChanges if there are actual breaking changes (API changes, removed features, etc.)
+- rolloutNotes is required — always describe how the feature reaches users
 - Respond with ONLY the JSON, no markdown fences or extra text`;
 
 // ---------------------------------------------------------------------------
@@ -118,7 +143,12 @@ export async function generatePRDescription(
     messages: [
       {
         role: 'user',
-        content: prType === 'release' ? RELEASE_PR_SYSTEM_PROMPT : STANDARD_PR_SYSTEM_PROMPT,
+        content:
+          prType === 'release'
+            ? RELEASE_PR_SYSTEM_PROMPT
+            : prType === 'feature'
+              ? FEATURE_PR_SYSTEM_PROMPT
+              : STANDARD_PR_SYSTEM_PROMPT,
       },
       {
         role: 'assistant',
@@ -149,6 +179,7 @@ export async function generatePRDescription(
     changes,
     testing: llmDescription.testing,
     breakingChanges: llmDescription.breakingChanges ?? undefined,
+    rolloutNotes: prType === 'feature' ? (llmDescription.rolloutNotes ?? ROLLOUT_NOTES_FALLBACK) : undefined,
     rolloutPlan: prType === 'release' ? (llmDescription.rolloutPlan ?? ROLLOUT_PLAN_FALLBACK) : undefined,
   };
 }
@@ -160,10 +191,14 @@ export async function generatePRDescription(
 const ROLLOUT_PLAN_FALLBACK =
   'Rollout/rollback plan not generated — document manually before merging.';
 
+const ROLLOUT_NOTES_FALLBACK =
+  'Rollout notes not generated — document manually before merging.';
+
 interface LLMPRResponse {
   summary: string;
   testing: string;
   breakingChanges: string | null;
+  rolloutNotes: string | null;
   rolloutPlan: string | null;
 }
 
@@ -177,6 +212,7 @@ function parseLLMResponse(text: string): LLMPRResponse {
         summary: typeof parsed['summary'] === 'string' ? parsed['summary'] : 'No summary generated',
         testing: typeof parsed['testing'] === 'string' ? parsed['testing'] : 'No testing notes generated',
         breakingChanges: typeof parsed['breakingChanges'] === 'string' ? parsed['breakingChanges'] : null,
+        rolloutNotes: typeof parsed['rolloutNotes'] === 'string' ? parsed['rolloutNotes'] : null,
         rolloutPlan: typeof parsed['rolloutPlan'] === 'string' ? parsed['rolloutPlan'] : null,
       };
     }
@@ -189,6 +225,7 @@ function parseLLMResponse(text: string): LLMPRResponse {
     summary: text || 'No summary generated',
     testing: 'Manual testing recommended',
     breakingChanges: null,
+    rolloutNotes: null,
     rolloutPlan: null,
   };
 }

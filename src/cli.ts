@@ -172,6 +172,9 @@ async function handlePR(baseBranch: string, configPath?: string): Promise<void> 
   if (pr.breakingChanges) {
     console.log(`## ⚠️ Breaking Changes\n${pr.breakingChanges}\n`);
   }
+  if (pr.type === 'feature' && pr.rolloutNotes) {
+    console.log(`## Rollout Notes\n${pr.rolloutNotes}\n`);
+  }
   if (pr.type === 'release' && pr.rolloutPlan) {
     console.log(`## Rollout / Rollback Plan\n${pr.rolloutPlan}\n`);
   }

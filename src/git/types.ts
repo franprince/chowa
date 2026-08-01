@@ -70,9 +70,10 @@ export interface CommitInfo {
 
 /**
  * PR type, derived from the branch-flow convention:
- * `release/*` / `hotfix/*` → `release`, everything else → `standard`.
+ * `release/*` / `hotfix/*` → `release`, `feat/*` → `feature`,
+ * everything else → `standard`.
  */
-export type PRType = 'standard' | 'release';
+export type PRType = 'standard' | 'feature' | 'release';
 
 /** Structured PR description with all sections. */
 export interface PRDescription {
@@ -90,6 +91,9 @@ export interface PRDescription {
 
   /** Breaking changes section (omitted if none). */
   readonly breakingChanges?: string;
+
+  /** Rollout notes (flag-gated? gradual? docs to update?) — present only when `type === 'feature'`. */
+  readonly rolloutNotes?: string;
 
   /** Rollout/rollback plan — present only when `type === 'release'`. */
   readonly rolloutPlan?: string;

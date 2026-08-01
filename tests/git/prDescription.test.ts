@@ -61,7 +61,7 @@ describe('generatePRDescription', () => {
     });
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'chore/foo');
 
     // Changes should come directly from commit messages, not re-summarized
     expect(pr.changes).toHaveLength(3);
@@ -78,7 +78,7 @@ describe('generatePRDescription', () => {
     });
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'chore/foo');
 
     expect(pr.summary).toBe('Modernizes formatting utilities to use platform-standard APIs.');
   });
@@ -91,7 +91,7 @@ describe('generatePRDescription', () => {
     });
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'chore/foo');
 
     expect(pr.testing).toContain('bun test');
   });
@@ -104,7 +104,7 @@ describe('generatePRDescription', () => {
     });
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'chore/foo');
 
     expect(pr.breakingChanges).toBeUndefined();
   });
@@ -117,7 +117,7 @@ describe('generatePRDescription', () => {
     });
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'chore/foo');
 
     expect(pr.breakingChanges).toBe('formatDate now requires a pattern parameter (was optional).');
   });
@@ -133,7 +133,7 @@ describe('generatePRDescription', () => {
     };
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'chore/foo');
 
     // Should fall back gracefully
     expect(pr.summary).toBeTruthy();
@@ -174,7 +174,7 @@ describe('generatePRDescription', () => {
     const transport: Transport = { send };
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, policyWithFallback, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, policyWithFallback, 'chore/foo');
 
     expect(pr.summary).toBe('Recovered via fallback');
     expect(send).toHaveBeenCalledTimes(2);
@@ -182,7 +182,7 @@ describe('generatePRDescription', () => {
     expect(send.mock.calls[1]![0]!.model).toBe('claude-sonnet-4.6');
   });
 
-  it('should default to standard type with no rolloutPlan on a non-release branch', async () => {
+  it('should default to standard type with no rolloutPlan/rolloutNotes on a non-feature, non-release branch', async () => {
     const transport = createMockTransport({
       summary: 'Routine change',
       testing: 'Run tests',
@@ -190,10 +190,46 @@ describe('generatePRDescription', () => {
     });
     const client = new ChowaClient(transport);
 
-    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/foo');
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'chore/foo');
 
     expect(pr.type).toBe('standard');
     expect(pr.rolloutPlan).toBeUndefined();
+    expect(pr.rolloutNotes).toBeUndefined();
+  });
+
+  it('should classify a feat/* branch as feature type and include rolloutNotes', async () => {
+    const transport = createMockTransport({
+      summary: 'Adds dark mode toggle for the dashboard.',
+      testing: 'Toggle the setting and verify theme persists across reloads.',
+      breakingChanges: null,
+      rolloutNotes: 'Behind the `dark-mode` flag, disabled by default. No docs update needed.',
+    });
+    const client = new ChowaClient(transport);
+
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/dark-mode');
+
+    expect(pr.type).toBe('feature');
+    expect(pr.rolloutNotes).toBe('Behind the `dark-mode` flag, disabled by default. No docs update needed.');
+    expect(pr.rolloutPlan).toBeUndefined();
+  });
+
+  it('should classify a feat/* branch as feature type and fall back to a default rolloutNotes on malformed response', async () => {
+    const transport: Transport = {
+      send: vi.fn(async (): Promise<TransportResponse> => ({
+        data: {
+          content: [{ type: 'text', text: 'This is not JSON at all' }],
+        },
+        status: 200,
+      })),
+    };
+    const client = new ChowaClient(transport);
+
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, testPolicy, 'feat/dark-mode');
+
+    expect(pr.type).toBe('feature');
+    expect(pr.rolloutNotes).toBe(
+      'Rollout notes not generated — document manually before merging.',
+    );
   });
 
   it('should classify a release/* branch as release type and include rolloutPlan', async () => {
@@ -237,10 +273,14 @@ describe('detectPRType', () => {
     expect(detectPRType('hotfix/login-500')).toBe('release');
   });
 
+  it('classifies feat/* branches as feature', () => {
+    expect(detectPRType('feat/foo')).toBe('feature');
+  });
+
   it('classifies everything else as standard', () => {
-    expect(detectPRType('feat/foo')).toBe('standard');
     expect(detectPRType('fix/bar')).toBe('standard');
     expect(detectPRType('docs/baz')).toBe('standard');
+    expect(detectPRType('chore/qux')).toBe('standard');
     expect(detectPRType('main')).toBe('standard');
     expect(detectPRType('random-name')).toBe('standard');
   });
