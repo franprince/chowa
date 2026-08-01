@@ -1,89 +1,78 @@
 ---
 name: chowa
 description: >
-  Chowa coding harness — use for all commit workflows, model routing decisions,
-  and PR description generation within this workspace. Chowa enforces atomic
-  commits, Conventional Commits format, and routes tasks to the right model.
+  Chōwa coding harness skill — mandatory guidelines for all coding, git branching,
+  commit workflows, PR creation, code quality verification, architecture boundaries,
+  and model routing decisions in this repository.
 ---
 
-# Chowa Skill (Self-Hosted)
+# Chōwa Skill (Self-Hosted)
 
-Chowa is installed in this workspace and is used to develop itself (dogfooding).
+Chōwa is installed in this workspace and is used to develop itself (dogfooding).
 
 ## Workflow Rules
 
 When making changes to this codebase, **always follow these conventions**:
 
-### 1. Branching & PRs
+### 1. Branching & PR Workflow
 
-- **Always create a new branch** for new features, fixes, or tasks before making changes.
+- **Always create a new branch** for new features, fixes, or tasks before making changes (never work or push directly on `main`, `master`, or `develop`).
 - **Never push directly to `main`, `master`, or `develop`**.
-- Always create a **Pull Request (PR)** against the target branch (`develop` or `main`).
-- **Always ask the user** if they want to create a PR (with description and all) when creating a new branch and committing.
+- Always create a **Pull Request (PR)** against the target base branch (`develop` or `main`).
+- **Always ask the user** if they want to create a PR (with PR description and all) whenever creating a new branch and committing.
 
-### 2. Before Committing
+### 2. Remote Update Checks
 
-Run Chowa's diff splitter to check if your changes should be split:
+- Before starting work or committing, check if the local branch is up to date with the remote:
+  ```bash
+  bun run src/cli.ts check-update
+  ```
 
-```bash
-bun run src/cli.ts commit
-```
+### 3. Commit Workflow & Messages
 
-If Chowa reports multiple clusters, **commit each cluster separately** as an atomic commit.
+- Run Chōwa's diff splitter to check if changes should be split into atomic commits:
+  ```bash
+  bun run src/cli.ts commit
+  ```
+- If Chōwa reports multiple clusters, **commit each cluster separately** as an atomic commit.
+- All commits **must** follow Conventional Commits format:
+  ```
+  type(scope): concise imperative description
+  ```
+- Valid types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`.
+- Valid scopes: `core`, `adapters`, `router`, `git`, `cli`, `integrations`.
 
-### 2. Commit Messages
+### 4. Code Quality & Build Verification
 
-All commits **must** use Conventional Commits format:
+Before committing changes, verify quality and safety:
+- Run `bun test` to ensure all tests pass.
+- Run `bun run check:imports` to verify one-way dependency boundaries (`integrations → core`, never reverse).
+- Run `bun run build` to verify TypeScript compiles cleanly.
 
-```
-type(scope): concise imperative description
-```
+### 5. Model Routing
 
-Valid types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`
-
-Scope should match the module: `core`, `adapters`, `router`, `git`, `cli`, `integrations`
-
-Examples:
-- `feat(adapters): implement OpenAI tool-call decoding`
-- `fix(core): handle empty arguments in validation`
-- `test(router): add edge case for wildcard overrides`
-- `docs: update README with new architecture diagram`
-
-### 3. Model Routing
-
-Check which model Chowa recommends for a task:
-
+Check which model Chōwa recommends for a task:
 ```bash
 bun run src/cli.ts route --kind <type> --complexity <level>
 ```
+- Task kinds: `mechanical`, `refactor`, `architecture`, `security`, `debug`
+- Complexity: `low`, `medium`, `high`
 
-Task kinds: `mechanical`, `refactor`, `architecture`, `security`, `debug`
-Complexity: `low`, `medium`, `high`
-
-### 4. PR Descriptions
+### 6. PR Description Generation
 
 Generate PR descriptions from commit history:
-
 ```bash
-bun run src/cli.ts pr --base main
+bun run src/cli.ts pr --base <branch>
 ```
 
-### 5. Dependency Boundary
-
-After any changes, verify the one-way dependency rule holds:
-
-```bash
-bun run check:imports
-```
-
-Core modules (`src/core/`, `src/adapters/`, `src/router/`, `src/git/`) must never import from `src/integrations/`.
-
-## Chowa CLI Reference
+## Chōwa CLI Reference
 
 | Command | Description |
 |---------|-------------|
+| `bun run src/cli.ts check-update` | Check if local branch is behind remote |
 | `bun run src/cli.ts commit` | Scan diff, split into atomic clusters |
 | `bun run src/cli.ts route --kind <k> --complexity <c>` | Resolve task to model |
 | `bun run src/cli.ts pr --base <branch>` | Generate PR description |
 | `bun run check:imports` | Verify dependency boundaries |
 | `bun test` | Run full test suite |
+| `bun run build` | Compile TypeScript cleanly |
