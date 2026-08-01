@@ -1,6 +1,6 @@
 {
   "name": "chowa",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "LLM coding harness — tool-call normalization, workflow enforcement, and model routing across providers",
   "type": "module",
   "main": "./dist/index.js",

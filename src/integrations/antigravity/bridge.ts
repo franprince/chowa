@@ -208,6 +208,7 @@ export class AntigravityBridge {
     const baseBranch = request.baseBranch ?? 'main';
     const gitOps = new GitOps();
 
+    const currentBranch = await gitOps.getCurrentBranch();
     const commits = await gitOps.getCommitHistory(baseBranch);
     const baseBranchDiff = await gitOps.getDiffAgainstBase(baseBranch);
 
@@ -216,6 +217,7 @@ export class AntigravityBridge {
       baseBranchDiff,
       this.client,
       this.policy,
+      currentBranch,
     );
 
     return {

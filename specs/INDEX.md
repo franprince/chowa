@@ -26,3 +26,5 @@ it stays here as history rather than being deleted or overwritten.
 | Date | Slug | Status | Summary |
 |---|---|---|---|
 | 2026-08-01 | [routing-config-wiring](2026-08-01-routing-config-wiring/spec.md) | Done | `chowa.config.ts` is never actually loaded by the CLI; `RoutingTargetConfig` doesn't match what the file contains; router-resolved fallbacks never reach `ChowaClient.call()`. |
+| 2026-08-01 | [portable-global-skill-sync](2026-08-01-portable-global-skill-sync/spec.md) | Done | `chowa commit`/`pr`/`check-update` silently overwrite `~/.gemini/config/` with self-dev-only instructions and a false "applies to all projects" claim on every invocation; `.agents/skills/chowa/SKILL.md` needs the same mode-detection already applied to the Claude Code skill. |
+| 2026-08-01 | [pr-type-templates](2026-08-01-pr-type-templates/spec.md) | Approved | `chowa pr` always emits the same 4-section description regardless of branch flow; adds branch-prefix PR-type detection (`standard` vs. `release`/`hotfix`) with a rollout/rollback plan section for release-flow PRs, wired into both the CLI and the Claude Code bridge. |

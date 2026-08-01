@@ -88,8 +88,11 @@ async function handleSyncGlobal(): Promise<void> {
     const globalAgentsFile = join(globalConfigDir, 'AGENTS.md');
     const globalAgentsContent = `# Global Chōwa Workspace Rules
 
-- Use the \`chowa\` skill for all branching, commit, PR, routing, quality, and architecture conventions across all projects.
-- Never push directly to \`main\`, \`master\`, or \`develop\`. Always work on dedicated feature branches and ask user before creating PRs.
+- In any project that has Chōwa installed (as its own source, or as a
+  dependency), use the \`chowa\` skill for branching, commit, PR, routing,
+  and quality conventions.
+- Never push directly to \`main\` or \`master\`. Always work on dedicated
+  feature branches and ask the user before creating PRs.
 `;
     writeFileSync(globalAgentsFile, globalAgentsContent, 'utf-8');
     console.log('✅ Synced global rules to ~/.gemini/config/AGENTS.md');
@@ -101,8 +104,6 @@ async function handleSyncGlobal(): Promise<void> {
 async function handleCheckUpdate(baseBranch?: string): Promise<void> {
   const { GitOps } = await import('./git/gitOps.js');
   const gitOps = new GitOps();
-
-  await handleSyncGlobal();
 
   const status = await gitOps.checkRemoteUpdates('origin', baseBranch);
 
@@ -162,7 +163,7 @@ async function handlePR(baseBranch: string, configPath?: string): Promise<void> 
   const client = new ChowaClient();
   const policy = await loadPolicy({ configPath });
 
-  const pr = await generatePRDescription(commits, diff, client, policy);
+  const pr = await generatePRDescription(commits, diff, client, policy, currentBranch);
 
   console.log(`# PR Description: ${currentBranch} → ${baseBranch}\n`);
   console.log(`## Summary\n${pr.summary}\n`);
@@ -170,6 +171,12 @@ async function handlePR(baseBranch: string, configPath?: string): Promise<void> 
   console.log(`## Testing Notes\n${pr.testing}\n`);
   if (pr.breakingChanges) {
     console.log(`## ⚠️ Breaking Changes\n${pr.breakingChanges}\n`);
+  }
+  if (pr.type === 'feature' && pr.rolloutNotes) {
+    console.log(`## Rollout Notes\n${pr.rolloutNotes}\n`);
+  }
+  if (pr.type === 'release' && pr.rolloutPlan) {
+    console.log(`## Rollout / Rollback Plan\n${pr.rolloutPlan}\n`);
   }
 }
 
