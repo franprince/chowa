@@ -4,7 +4,7 @@ import { generatePRDescription } from '../../src/git/prDescription.js';
 import type { CommitInfo } from '../../src/git/types.js';
 import type { RoutingPolicy } from '../../src/router/types.js';
 import { ChowaClient } from '../../src/client.js';
-import type { Transport, TransportResponse } from '../../src/core/types.js';
+import type { Transport, TransportRequest, TransportResponse } from '../../src/core/types.js';
 
 // ---------------------------------------------------------------------------
 // Mock transport
@@ -139,5 +139,46 @@ describe('generatePRDescription', () => {
     expect(pr.summary).toBeTruthy();
     expect(pr.changes).toHaveLength(3); // changes always come from commits
     expect(pr.testing).toBeTruthy();
+  });
+
+  it('should use the routing target fallback when the primary target fails', async () => {
+    const policyWithFallback: RoutingPolicy = {
+      rules: [
+        {
+          match: { kind: 'mechanical' },
+          target: {
+            provider: 'anthropic',
+            model: 'claude-haiku',
+            fallbacks: [{ provider: 'anthropic', model: 'claude-sonnet-4.6' }],
+          },
+          priority: 10,
+        },
+      ],
+      defaultTarget: { provider: 'anthropic', model: 'claude-sonnet-4.6' },
+    };
+
+    const send = vi.fn(async (request: TransportRequest): Promise<TransportResponse> => {
+      if (request.model === 'claude-haiku') {
+        throw new Error('primary model unavailable');
+      }
+      return {
+        data: {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ summary: 'Recovered via fallback', testing: 'n/a', breakingChanges: null }),
+          }],
+        },
+        status: 200,
+      };
+    });
+    const transport: Transport = { send };
+    const client = new ChowaClient(transport);
+
+    const pr = await generatePRDescription(testCommits, 'mock-diff', client, policyWithFallback);
+
+    expect(pr.summary).toBe('Recovered via fallback');
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0]![0]!.model).toBe('claude-haiku');
+    expect(send.mock.calls[1]![0]!.model).toBe('claude-sonnet-4.6');
   });
 });
