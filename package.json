@@ -15,6 +15,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:imports": "bun run scripts/check-imports.ts",
+    "sync:skill": "bun run scripts/sync-skill.ts",
+    "check:skill": "bun run scripts/sync-skill.ts --check",
     "lint": "tsc --noEmit -p tsconfig.lint.json",
     "verify": "bun test && bun run check:imports && bun run build && bun run lint"
   },

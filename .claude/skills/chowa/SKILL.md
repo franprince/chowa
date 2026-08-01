@@ -15,6 +15,14 @@ This is the Claude Code variant of `.agents/skills/chowa/SKILL.md`, wired up
 through the `ClaudeCodeBridge` (`src/integrations/claude-code/bridge.ts`) and
 the `chowa claude-code-bridge` CLI command.
 
+> **This file is not the distributed skill.** It is project-local to Chōwa's
+> own source and governs work in *this* repository only, which is why it can
+> assume self-repo mode throughout. The skill users install lives at
+> `plugins/chowa/skills/chowa/SKILL.md` and is the canonical one;
+> `.agents/skills/chowa/SKILL.md` is generated from it by
+> `bun run sync:skill`. Workflow changes meant for users belong in the
+> canonical file, not here.
+
 ## Workflow Rules
 
 When making changes to this codebase, **always follow these conventions**:
