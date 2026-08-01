@@ -1,0 +1,33 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "I'll help you check the weather and forecast."
+          },
+          {
+            "functionCall": {
+              "name": "get_weather",
+              "args": {
+                "location": "San Francisco, CA",
+                "unit": "celsius"
+              }
+            }
+          },
+          {
+            "functionCall": {
+              "name": "get_forecast",
+              "args": {
+                "location": "San Francisco, CA",
+                "days": 5
+              }
+            }
+          }
+        ]
+      },
+      "finishReason": "STOP"
+    }
+  ]
+}
