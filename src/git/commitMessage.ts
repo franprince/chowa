@@ -76,21 +76,17 @@ export async function generateCommitMessage(
     provider: decision.target.provider,
     model: decision.target.model,
     tools: [],
+    // Inject system prompt via a leading user message
+    // (system prompt handling varies by provider, but a user message always works)
     messages: [
+      { role: 'user', content: COMMIT_MESSAGE_SYSTEM_PROMPT },
+      { role: 'assistant', content: 'I understand. Send me the diff and I will generate a commit message.' },
       {
         role: 'user',
         content: `Generate a commit message for the following changes:\n\nFiles changed: ${filesChanged}\n\nDiff:\n${diffContent}`,
       },
     ],
   };
-
-  // Inject system prompt via a leading user message
-  // (system prompt handling varies by provider, but a user message always works)
-  callOptions.messages = [
-    { role: 'user', content: COMMIT_MESSAGE_SYSTEM_PROMPT },
-    { role: 'assistant', content: 'I understand. Send me the diff and I will generate a commit message.' },
-    ...callOptions.messages,
-  ];
 
   const result = await client.call(callOptions);
   const message = result.text?.trim() ?? '';
