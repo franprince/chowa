@@ -1,7 +1,11 @@
 # Implementation Plan: Portable global skill sync
 
-Status: **Approved** — 2026-08-01. Branch: `fix/portable-global-skill-sync`
-(off `develop`, per this repo's branch-flow rule).
+Status: **Done** — 2026-08-01. Branch: `fix/portable-global-skill-sync`
+(off `develop`, per this repo's branch-flow rule). Both commits landed;
+`bun test` (98/98), `bun run lint`, `bun run check:imports`, and
+`bun run build` all clean. Manually verified with a scratch `$HOME` that
+`chowa check-update` no longer touches `~/.gemini/config/` while
+`chowa sync-global` still writes both files with the corrected content.
 
 ## Overview
 

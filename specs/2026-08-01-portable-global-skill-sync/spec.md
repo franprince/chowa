@@ -1,8 +1,9 @@
 # Spec: Portable global skill sync (stop leaking self-dev instructions into other projects)
 
-Status: **Approved** — 2026-08-01. Both open questions confirmed as proposed:
-(1) remove the implicit `handleSyncGlobal()` call from `handleCheckUpdate()`
-entirely, no flag; (2) make `.agents/skills/chowa/SKILL.md` provider-neutral
+Status: **Done** — 2026-08-01. Implemented on branch
+`fix/portable-global-skill-sync`. Both open questions resolved as proposed:
+(1) removed the implicit `handleSyncGlobal()` call from `handleCheckUpdate()`
+entirely, no flag; (2) made `.agents/skills/chowa/SKILL.md` provider-neutral
 with the same mode-detection structure as the Claude Code skill.
 
 ## Problem Statement
