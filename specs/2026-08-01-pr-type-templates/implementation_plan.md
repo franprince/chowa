@@ -1,10 +1,12 @@
 # Implementation Plan: PR templates by branch flow
 
-Status: **Approved**
+Status: **Approved** — original plan (items 1-6 below) shipped on this
+branch. **Amendment** below covers pulling `feat/*` out into its own
+`feature` type, on top of that already-shipped code.
 
 Spec: [spec.md](spec.md)
 
-## Files to modify
+## Files to modify (original plan — shipped)
 
 ### 1. `src/git/types.ts`
 
@@ -126,7 +128,7 @@ Same change as item 4:
 - No other changes — `data: { baseBranch, prDescription }` already
   forwards the whole object.
 
-## Test Plan
+## Test Plan (original)
 
 1. `bun test tests/git/prDescription.test.ts` — new + updated cases pass.
 2. `bun test` — full suite green (catches any other call site of
@@ -141,3 +143,99 @@ Same change as item 4:
    - On a `release/*` or `hotfix/*` branch (create a throwaway one if
      needed): `bun run src/cli.ts pr --base main` → 5 sections including
      Rollout/Rollback Plan.
+
+## Amendment: `feat/*` → its own `feature` type
+
+### 1. `src/git/types.ts`
+
+```ts
+export type PRType = 'standard' | 'feature' | 'release';
+
+export interface PRDescription {
+  readonly type: PRType;
+  readonly summary: string;
+  readonly changes: readonly string[];
+  readonly testing: string;
+  readonly breakingChanges?: string;
+  readonly rolloutNotes?: string; // present only when type === 'feature'
+  readonly rolloutPlan?: string;  // present only when type === 'release'
+}
+```
+
+### 2. `src/git/prDescription.ts`
+
+- `detectPRType`: check `release/` / `hotfix/` first, then `feat/` →
+  `'feature'`, else `'standard'`:
+  ```ts
+  export function detectPRType(branchName: string): PRType {
+    if (branchName.startsWith('release/') || branchName.startsWith('hotfix/')) {
+      return 'release';
+    }
+    if (branchName.startsWith('feat/')) {
+      return 'feature';
+    }
+    return 'standard';
+  }
+  ```
+- Add `FEATURE_PR_SYSTEM_PROMPT`: same JSON contract as
+  `STANDARD_PR_SYSTEM_PROMPT` plus a required `rolloutNotes` field.
+  Summary instruction tuned toward motivation/user-impact (e.g. "explain
+  *why this capability exists and who benefits*, not just what changed").
+  Rule text: "rolloutNotes: how this capability reaches users — is it
+  behind a flag, rolled out gradually, does it need a docs update —
+  required, never null."
+- Prompt selection in `generatePRDescription` becomes a 3-way switch on
+  `prType` (`'release'` → `RELEASE_PR_SYSTEM_PROMPT`, `'feature'` →
+  `FEATURE_PR_SYSTEM_PROMPT`, else `STANDARD_PR_SYSTEM_PROMPT`).
+- `LLMPRResponse` gains `rolloutNotes: string | null`; `parseLLMResponse`
+  extracts it the same way as `rolloutPlan`.
+- New fallback constant `ROLLOUT_NOTES_FALLBACK =
+  'Rollout notes not generated — document manually before merging.'`.
+- Return object: `rolloutNotes: prType === 'feature' ? (llmDescription.rolloutNotes
+  ?? ROLLOUT_NOTES_FALLBACK) : undefined`, alongside the existing
+  `rolloutPlan` line (which stays gated on `prType === 'release'` — the
+  two are mutually exclusive since `prType` is a single value).
+
+### 3. `src/cli.ts` (`handlePR`)
+
+Add, alongside the existing release-only block:
+
+```ts
+if (pr.type === 'feature' && pr.rolloutNotes) {
+  console.log(`## Rollout Notes\n${pr.rolloutNotes}\n`);
+}
+```
+
+### 4. Bridges
+
+No change needed — `src/integrations/claude-code/bridge.ts` and
+`src/integrations/antigravity/bridge.ts` already forward the full
+`prDescription` object; `rolloutNotes` reaches consumers automatically.
+
+### 5. `tests/git/prDescription.test.ts`
+
+- `detectPRType('feat/foo') === 'feature'` (update the existing
+  `detectPRType` describe block — `'feat/foo'` currently asserts
+  `'standard'` and must change to `'feature'`).
+- New `generatePRDescription(..., 'feat/foo')` case with a mock response
+  containing `rolloutNotes` → `pr.type === 'feature'`, `pr.rolloutNotes`
+  equals the mock value, `pr.rolloutPlan === undefined`.
+- New `generatePRDescription(..., 'feat/foo')` case with a malformed
+  response → `pr.type === 'feature'`, `pr.rolloutNotes` equals
+  `ROLLOUT_NOTES_FALLBACK`.
+- Existing tests that pass `'feat/foo'` as the branch name for
+  *type-agnostic* assertions (summary/testing/breakingChanges/fallback
+  behavior) must switch to a genuinely `standard` branch name (e.g.
+  `'chore/foo'`) so they keep testing `type: 'standard'` as originally
+  intended — otherwise they'd now silently assert against `'feature'`
+  behavior.
+
+## Test Plan (amendment)
+
+1. `bun test tests/git/prDescription.test.ts` — updated + new cases pass.
+2. `bun test`, `bun run check:imports`, `bun run build` — full suite
+   green.
+3. Manual note: live CLI smoke test not possible in this environment (no
+   LLM provider credentials configured) — same limitation as the
+   original implementation; covered by unit tests with a mocked
+   transport instead.
