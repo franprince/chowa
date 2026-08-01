@@ -7,7 +7,7 @@
  * This module is the only place that touches the file system / git CLI.
  */
 
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import type { SimpleGit } from 'simple-git';
 
 import type { CommitInfo } from './types.js';
