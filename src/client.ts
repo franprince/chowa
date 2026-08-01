@@ -17,6 +17,7 @@ import type {
   CanonicalMessage,
   CallResult,
   Transport,
+  TransportRequest,
   TransportResponse,
 } from './core/types.js';
 import { validateToolCall } from './core/validate.js';
@@ -60,7 +61,23 @@ export interface CallOptions {
  * configuring a real transport.
  */
 class MockTransport implements Transport {
-  async send(): Promise<TransportResponse> {
+  async send(request: TransportRequest): Promise<TransportResponse> {
+    if (request.provider === 'gemini') {
+      return {
+        data: {
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [],
+              },
+            },
+          ],
+        },
+        status: 200,
+      };
+    }
+
     return {
       data: { content: [] },
       status: 200,
