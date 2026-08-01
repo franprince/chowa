@@ -98,4 +98,39 @@ export class GitOps {
     const status = await this.git.status();
     return status.isClean();
   }
+
+  /**
+   * Fetch updates from remote and check if local branch is behind remote.
+   */
+  async checkRemoteUpdates(
+    remote = 'origin',
+    baseBranch?: string,
+  ): Promise<{ behindCount: number; aheadCount: number; remoteBranch: string }> {
+    const currentBranch = await this.getCurrentBranch();
+    const targetRemoteBranch = `${remote}/${baseBranch ?? currentBranch}`;
+
+    try {
+      await this.git.fetch(remote);
+      const revList = await this.git.raw([
+        'rev-list',
+        '--left-right',
+        '--count',
+        `HEAD...${targetRemoteBranch}`,
+      ]);
+      const [aheadStr, behindStr] = revList.trim().split(/\s+/);
+
+      return {
+        aheadCount: parseInt(aheadStr ?? '0', 10),
+        behindCount: parseInt(behindStr ?? '0', 10),
+        remoteBranch: targetRemoteBranch,
+      };
+    } catch {
+      return {
+        aheadCount: 0,
+        behindCount: 0,
+        remoteBranch: targetRemoteBranch,
+      };
+    }
+  }
 }
+
