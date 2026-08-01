@@ -148,27 +148,71 @@ export class AntigravityBridge {
     };
   }
 
-  private handleCommit(): AntigravityResponse {
-    // TODO: Wire up to git workflow module
-    // For now, return instructions for using the CLI
+  private async handleCommit(): Promise<AntigravityResponse> {
+    const { GitOps } = await import('../../git/gitOps.js');
+    const { splitDiff } = await import('../../git/diffSplitter.js');
+    const { generateCommitMessage } = await import('../../git/commitMessage.js');
+
+    const gitOps = new GitOps();
+    const diff = (await gitOps.getDiff()) || (await gitOps.getStagedDiff());
+
+    if (!diff.trim()) {
+      return {
+        success: true,
+        action: 'commit',
+        data: {
+          message: 'No uncommitted changes detected.',
+          clusters: [],
+        },
+      };
+    }
+
+    const clusters = splitDiff(diff);
+    const results = [];
+
+    for (const cluster of clusters) {
+      const message = await generateCommitMessage(cluster, this.client, this.policy);
+      results.push({
+        id: cluster.id,
+        files: cluster.files,
+        message,
+      });
+    }
+
     return {
       success: true,
       action: 'commit',
       data: {
-        message: 'Use `chowa commit` CLI command for atomic commit workflow',
+        clusters: results,
       },
     };
   }
 
-  private handlePR(request: AntigravityRequest): AntigravityResponse {
-    // TODO: Wire up to git workflow module
-    const _baseBranch = request.baseBranch ?? 'main';
+  private async handlePR(request: AntigravityRequest): Promise<AntigravityResponse> {
+    const { GitOps } = await import('../../git/gitOps.js');
+    const { generatePRDescription } = await import('../../git/prDescription.js');
+
+    const baseBranch = request.baseBranch ?? 'main';
+    const gitOps = new GitOps();
+
+    const commits = await gitOps.getCommitHistory(baseBranch);
+    const baseBranchDiff = await gitOps.getDiffAgainstBase(baseBranch);
+
+    const prDescription = await generatePRDescription(
+      commits,
+      baseBranchDiff,
+      this.client,
+      this.policy,
+    );
+
     return {
       success: true,
       action: 'pr',
       data: {
-        message: `Use \`chowa pr --base ${_baseBranch}\` CLI command for PR description generation`,
+        baseBranch,
+        prDescription,
       },
     };
   }
 }
+
