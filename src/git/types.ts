@@ -68,8 +68,17 @@ export interface CommitInfo {
 // PR Description
 // ---------------------------------------------------------------------------
 
+/**
+ * PR type, derived from the branch-flow convention:
+ * `release/*` / `hotfix/*` → `release`, everything else → `standard`.
+ */
+export type PRType = 'standard' | 'release';
+
 /** Structured PR description with all sections. */
 export interface PRDescription {
+  /** PR type derived from the current branch name. */
+  readonly type: PRType;
+
   /** High-level summary of the PR. */
   readonly summary: string;
 
@@ -81,6 +90,9 @@ export interface PRDescription {
 
   /** Breaking changes section (omitted if none). */
   readonly breakingChanges?: string;
+
+  /** Rollout/rollback plan — present only when `type === 'release'`. */
+  readonly rolloutPlan?: string;
 }
 
 // ---------------------------------------------------------------------------

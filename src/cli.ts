@@ -163,7 +163,7 @@ async function handlePR(baseBranch: string, configPath?: string): Promise<void> 
   const client = new ChowaClient();
   const policy = await loadPolicy({ configPath });
 
-  const pr = await generatePRDescription(commits, diff, client, policy);
+  const pr = await generatePRDescription(commits, diff, client, policy, currentBranch);
 
   console.log(`# PR Description: ${currentBranch} → ${baseBranch}\n`);
   console.log(`## Summary\n${pr.summary}\n`);
@@ -171,6 +171,9 @@ async function handlePR(baseBranch: string, configPath?: string): Promise<void> 
   console.log(`## Testing Notes\n${pr.testing}\n`);
   if (pr.breakingChanges) {
     console.log(`## ⚠️ Breaking Changes\n${pr.breakingChanges}\n`);
+  }
+  if (pr.type === 'release' && pr.rolloutPlan) {
+    console.log(`## Rollout / Rollback Plan\n${pr.rolloutPlan}\n`);
   }
 }
 
