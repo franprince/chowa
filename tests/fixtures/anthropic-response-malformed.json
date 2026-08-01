@@ -1,0 +1,23 @@
+{
+  "id": "msg_fixture_002",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Let me get the weather for you."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_03C09q90qw90lq917835lq9",
+      "name": "get_weather",
+      "input": {
+        "location": 12345,
+        "unit": "kelvin",
+        "extra_field": true
+      }
+    }
+  ],
+  "model": "claude-sonnet-4-20250514",
+  "stop_reason": "tool_use"
+}

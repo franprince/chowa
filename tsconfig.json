@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "paths": {
+      "@chowa/core": ["./src/core/index.ts"],
+      "@chowa/core/*": ["./src/core/*"],
+      "@chowa/adapters": ["./src/adapters/index.ts"],
+      "@chowa/adapters/*": ["./src/adapters/*"],
+      "@chowa/router": ["./src/router/index.ts"],
+      "@chowa/router/*": ["./src/router/*"],
+      "@chowa/git": ["./src/git/index.ts"],
+      "@chowa/git/*": ["./src/git/*"],
+      "@chowa/client": ["./src/client.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

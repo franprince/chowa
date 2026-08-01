@@ -1,0 +1,174 @@
+/**
+ * Antigravity Bridge
+ *
+ * Thin integration surface between Antigravity's agent conventions
+ * and Chowa's CLI/library API. This module imports from core only —
+ * the dependency flows one direction: integrations → core.
+ *
+ * The bridge translates between Antigravity's request/response shape
+ * and Chowa's canonical types, so the core library never needs to
+ * know about Antigravity.
+ */
+
+import { ChowaClient } from '../../client.js';
+import type { CallResult, CanonicalTool, CanonicalMessage } from '../../core/types.js';
+import { resolve } from '../../router/router.js';
+import type { RoutingPolicy, TaskProfile } from '../../router/types.js';
+
+// ---------------------------------------------------------------------------
+// Antigravity request/response shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * A request from an Antigravity agent session.
+ * This mirrors what Antigravity sends when invoking an external tool/skill.
+ */
+export interface AntigravityRequest {
+  /** The action to perform. */
+  readonly action: 'call' | 'commit' | 'pr' | 'route';
+
+  /** Provider to use (optional — will be resolved by router if omitted). */
+  readonly provider?: string;
+
+  /** Model to use (optional — will be resolved by router if omitted). */
+  readonly model?: string;
+
+  /** Task profile for routing (optional). */
+  readonly taskProfile?: TaskProfile;
+
+  /** Tools available for this call (for 'call' action). */
+  readonly tools?: readonly CanonicalTool[];
+
+  /** Messages for this call (for 'call' action). */
+  readonly messages?: readonly CanonicalMessage[];
+
+  /** Base branch for PR description (for 'pr' action). */
+  readonly baseBranch?: string;
+}
+
+/**
+ * Response sent back to the Antigravity agent.
+ */
+export interface AntigravityResponse {
+  readonly success: boolean;
+  readonly action: string;
+  readonly data?: CallResult | Record<string, unknown>;
+  readonly error?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Bridge
+// ---------------------------------------------------------------------------
+
+export class AntigravityBridge {
+  private readonly client: ChowaClient;
+  private readonly policy: RoutingPolicy;
+
+  constructor(client: ChowaClient, policy: RoutingPolicy) {
+    this.client = client;
+    this.policy = policy;
+  }
+
+  /**
+   * Handle an incoming request from an Antigravity agent.
+   * Routes to the appropriate Chowa functionality.
+   */
+  async handle(request: AntigravityRequest): Promise<AntigravityResponse> {
+    try {
+      switch (request.action) {
+        case 'call':
+          return await this.handleCall(request);
+        case 'route':
+          return this.handleRoute(request);
+        case 'commit':
+          return this.handleCommit();
+        case 'pr':
+          return this.handlePR(request);
+        default:
+          return {
+            success: false,
+            action: request.action,
+            error: `Unknown action: ${request.action}`,
+          };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        action: request.action,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private async handleCall(request: AntigravityRequest): Promise<AntigravityResponse> {
+    // Resolve provider/model via router if not explicitly provided
+    let provider = request.provider;
+    let model = request.model;
+
+    if (!provider || !model) {
+      const profile: TaskProfile = request.taskProfile ?? {
+        kind: 'mechanical',
+        estimatedComplexity: 'low',
+      };
+      const decision = resolve(profile, this.policy);
+      provider = provider ?? decision.target.provider;
+      model = model ?? decision.target.model;
+    }
+
+    const result = await this.client.call({
+      provider,
+      model,
+      tools: request.tools ?? [],
+      messages: request.messages ?? [],
+    });
+
+    return {
+      success: true,
+      action: 'call',
+      data: result,
+    };
+  }
+
+  private handleRoute(request: AntigravityRequest): AntigravityResponse {
+    const profile: TaskProfile = request.taskProfile ?? {
+      kind: 'mechanical',
+      estimatedComplexity: 'low',
+    };
+
+    const decision = resolve(profile, this.policy);
+
+    return {
+      success: true,
+      action: 'route',
+      data: {
+        target: decision.target,
+        matchedRule: decision.matchedRule,
+        reason: decision.reason,
+      },
+    };
+  }
+
+  private handleCommit(): AntigravityResponse {
+    // TODO: Wire up to git workflow module
+    // For now, return instructions for using the CLI
+    return {
+      success: true,
+      action: 'commit',
+      data: {
+        message: 'Use `chowa commit` CLI command for atomic commit workflow',
+      },
+    };
+  }
+
+  private handlePR(request: AntigravityRequest): AntigravityResponse {
+    // TODO: Wire up to git workflow module
+    const _baseBranch = request.baseBranch ?? 'main';
+    return {
+      success: true,
+      action: 'pr',
+      data: {
+        message: `Use \`chowa pr --base ${_baseBranch}\` CLI command for PR description generation`,
+      },
+    };
+  }
+}

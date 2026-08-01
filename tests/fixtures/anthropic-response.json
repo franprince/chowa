@@ -1,0 +1,31 @@
+{
+  "id": "msg_fixture_001",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "I'll help you check the weather. Let me look that up."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01A09q90qw90lq917835lq9",
+      "name": "get_weather",
+      "input": {
+        "location": "San Francisco, CA",
+        "unit": "celsius"
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_02B09q90qw90lq917835lq9",
+      "name": "get_forecast",
+      "input": {
+        "location": "San Francisco, CA",
+        "days": 5
+      }
+    }
+  ],
+  "model": "claude-sonnet-4-20250514",
+  "stop_reason": "tool_use"
+}

@@ -1,0 +1,51 @@
+{
+  "name": "chowa",
+  "version": "0.1.0",
+  "description": "LLM coding harness — tool-call normalization, workflow enforcement, and model routing across providers",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "chowa": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./core": "./dist/core/index.js",
+    "./adapters": "./dist/adapters/index.js",
+    "./router": "./dist/router/index.js",
+    "./git": "./dist/git/index.js",
+    "./client": "./dist/client.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check:imports": "bun run scripts/check-imports.ts",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "llm",
+    "tool-calling",
+    "ai",
+    "coding-agent",
+    "conventional-commits",
+    "model-routing"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "jsonrepair": "^3.11.0",
+    "simple-git": "^3.27.0",
+    "zod": "^3.24.0",
+    "zod-to-json-schema": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

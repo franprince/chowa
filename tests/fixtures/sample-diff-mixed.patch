@@ -1,0 +1,33 @@
+diff --git a/README.md b/README.md
+index 1234567..abcdefg 100644
+--- a/README.md
++++ b/README.md
+@@ -1,5 +1,7 @@
+ # My Project
+ 
+-A simple project.
++A comprehensive project for managing widgets.
++
++## Installation
+ 
+ Run `npm install` to get started.
+diff --git a/src/utils/format.ts b/src/utils/format.ts
+index 2345678..bcdefgh 100644
+--- a/src/utils/format.ts
++++ b/src/utils/format.ts
+@@ -1,8 +1,12 @@
+-export function formatDate(date: Date): string {
+-  return date.toISOString();
++import { format } from 'date-fns';
++
++export function formatDate(date: Date, pattern: string = 'yyyy-MM-dd'): string {
++  return format(date, pattern);
+ }
+ 
+ export function formatCurrency(amount: number): string {
+-  return `$${amount.toFixed(2)}`;
++  return new Intl.NumberFormat('en-US', {
++    style: 'currency',
++    currency: 'USD',
++  }).format(amount);
+ }
