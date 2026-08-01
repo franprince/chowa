@@ -213,4 +213,5 @@ export interface RoutingRuleConfig {
 export interface RoutingTargetConfig {
   readonly provider: string;
   readonly model: string;
+  readonly fallbacks?: readonly Omit<RoutingTargetConfig, 'fallbacks'>[];
 }

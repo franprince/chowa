@@ -4,7 +4,7 @@ import { generateCommitMessage, CONVENTIONAL_COMMIT_REGEX } from '../../src/git/
 import type { DiffCluster } from '../../src/git/types.js';
 import type { RoutingPolicy } from '../../src/router/types.js';
 import { ChowaClient } from '../../src/client.js';
-import type { Transport, TransportResponse } from '../../src/core/types.js';
+import type { Transport, TransportRequest, TransportResponse } from '../../src/core/types.js';
 
 // ---------------------------------------------------------------------------
 // Mock transport that returns a commit message
@@ -95,6 +95,42 @@ describe('generateCommitMessage', () => {
     const message = await generateCommitMessage(testCluster, client, testPolicy);
 
     expect(CONVENTIONAL_COMMIT_REGEX.test(message)).toBe(true);
+  });
+
+  it('should use the routing target fallback when the primary target fails', async () => {
+    const policyWithFallback: RoutingPolicy = {
+      rules: [
+        {
+          match: { kind: 'mechanical' },
+          target: {
+            provider: 'anthropic',
+            model: 'claude-haiku',
+            fallbacks: [{ provider: 'anthropic', model: 'claude-sonnet-4.6' }],
+          },
+          priority: 10,
+        },
+      ],
+      defaultTarget: { provider: 'anthropic', model: 'claude-sonnet-4.6' },
+    };
+
+    const send = vi.fn(async (request: TransportRequest): Promise<TransportResponse> => {
+      if (request.model === 'claude-haiku') {
+        throw new Error('primary model unavailable');
+      }
+      return {
+        data: { content: [{ type: 'text', text: 'fix: recover via fallback model' }] },
+        status: 200,
+      };
+    });
+    const transport: Transport = { send };
+    const client = new ChowaClient(transport);
+
+    const message = await generateCommitMessage(testCluster, client, policyWithFallback);
+
+    expect(CONVENTIONAL_COMMIT_REGEX.test(message)).toBe(true);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0]![0]!.model).toBe('claude-haiku');
+    expect(send.mock.calls[1]![0]!.model).toBe('claude-sonnet-4.6');
   });
 });
 

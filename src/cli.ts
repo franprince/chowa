@@ -49,11 +49,11 @@ Examples:
 `);
 }
 
-async function handleRoute(kind: string, complexity: string): Promise<void> {
+async function handleRoute(kind: string, complexity: string, configPath?: string): Promise<void> {
   const { resolve } = await import('./router/router.js');
+  const { loadPolicy } = await import('./router/loadPolicy.js');
 
-  // Load config (dynamic import to handle .ts config files)
-  const policy = await loadPolicy();
+  const policy = await loadPolicy({ configPath });
 
   const decision = resolve(
     {
@@ -114,11 +114,12 @@ async function handleCheckUpdate(baseBranch?: string): Promise<void> {
   }
 }
 
-async function handleCommit(): Promise<void> {
+async function handleCommit(configPath?: string): Promise<void> {
   const { splitDiff } = await import('./git/diffSplitter.js');
   const { generateCommitMessage } = await import('./git/commitMessage.js');
   const { GitOps } = await import('./git/gitOps.js');
   const { ChowaClient } = await import('./client.js');
+  const { loadPolicy } = await import('./router/loadPolicy.js');
 
   const gitOps = new GitOps();
   await handleCheckUpdate();
@@ -134,7 +135,7 @@ async function handleCommit(): Promise<void> {
   console.log(`Found ${clusters.length} logical change cluster(s):\n`);
 
   const client = new ChowaClient();
-  const policy = await loadPolicy();
+  const policy = await loadPolicy({ configPath });
 
   for (const cluster of clusters) {
     console.log(`📦 Cluster ${cluster.id} [${cluster.files.join(', ')}]:`);
@@ -143,10 +144,11 @@ async function handleCommit(): Promise<void> {
   }
 }
 
-async function handlePR(baseBranch: string): Promise<void> {
+async function handlePR(baseBranch: string, configPath?: string): Promise<void> {
   const { GitOps } = await import('./git/gitOps.js');
   const { generatePRDescription } = await import('./git/prDescription.js');
   const { ChowaClient } = await import('./client.js');
+  const { loadPolicy } = await import('./router/loadPolicy.js');
 
   const gitOps = new GitOps();
   await handleCheckUpdate(baseBranch);
@@ -158,7 +160,7 @@ async function handlePR(baseBranch: string): Promise<void> {
   const diff = await gitOps.getDiffAgainstBase(baseBranch);
 
   const client = new ChowaClient();
-  const policy = await loadPolicy();
+  const policy = await loadPolicy({ configPath });
 
   const pr = await generatePRDescription(commits, diff, client, policy);
 
@@ -171,12 +173,13 @@ async function handlePR(baseBranch: string): Promise<void> {
   }
 }
 
-async function handleAntigravityBridge(): Promise<void> {
+async function handleAntigravityBridge(configPath?: string): Promise<void> {
   const { AntigravityBridge } = await import('./integrations/antigravity/bridge.js');
   const { ChowaClient } = await import('./client.js');
+  const { loadPolicy } = await import('./router/loadPolicy.js');
 
   const client = new ChowaClient();
-  const policy = await loadPolicy();
+  const policy = await loadPolicy({ configPath });
   const bridge = new AntigravityBridge(client, policy);
 
   let input = '';
@@ -208,37 +211,6 @@ async function handleAntigravityBridge(): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Config loader
-// ---------------------------------------------------------------------------
-
-async function loadPolicy() {
-  const { resolve: routerResolve } = await import('./router/router.js');
-  void routerResolve; // suppress unused import warning in stub
-
-  // Default policy — used when no config file is found
-  return {
-    rules: [
-      {
-        match: { kind: 'mechanical' as const },
-        target: { provider: 'gemini', model: 'gemini-3-flash' },
-        priority: 10,
-      },
-      {
-        match: { kind: 'security' as const },
-        target: { provider: 'anthropic', model: 'claude-opus-4.6' },
-        priority: 100,
-      },
-      {
-        match: { kind: 'architecture' as const, estimatedComplexity: 'high' as const },
-        target: { provider: 'anthropic', model: 'claude-opus-4.6' },
-        priority: 50,
-      },
-    ],
-    defaultTarget: { provider: 'anthropic', model: 'claude-sonnet-4.6' },
-  };
-}
-
 async function handleModels(provider?: string): Promise<void> {
   const { ChowaClient } = await import('./client.js');
   const client = new ChowaClient();
@@ -247,12 +219,13 @@ async function handleModels(provider?: string): Promise<void> {
   console.log(JSON.stringify(models, null, 2));
 }
 
-async function handleClaudeCodeBridge(): Promise<void> {
+async function handleClaudeCodeBridge(configPath?: string): Promise<void> {
   const { ClaudeCodeBridge } = await import('./integrations/claude-code/bridge.js');
   const { ChowaClient } = await import('./client.js');
+  const { loadPolicy } = await import('./router/loadPolicy.js');
 
   const client = new ChowaClient();
-  const policy = await loadPolicy();
+  const policy = await loadPolicy({ configPath });
   const bridge = new ClaudeCodeBridge(client, policy);
 
   let input = '';
@@ -311,7 +284,7 @@ async function main(): Promise<void> {
 
   switch (command) {
     case 'route':
-      await handleRoute(values.kind ?? 'mechanical', values.complexity ?? 'low');
+      await handleRoute(values.kind ?? 'mechanical', values.complexity ?? 'low', values.config);
       break;
 
     case 'models':
@@ -319,11 +292,11 @@ async function main(): Promise<void> {
       break;
 
     case 'commit':
-      await handleCommit();
+      await handleCommit(values.config);
       break;
 
     case 'pr':
-      await handlePR(values.base ?? 'main');
+      await handlePR(values.base ?? 'main', values.config);
       break;
 
     case 'check-update':
@@ -341,11 +314,11 @@ async function main(): Promise<void> {
       break;
 
     case 'antigravity-bridge':
-      await handleAntigravityBridge();
+      await handleAntigravityBridge(values.config);
       break;
 
     case 'claude-code-bridge':
-      await handleClaudeCodeBridge();
+      await handleClaudeCodeBridge(values.config);
       break;
 
     default:

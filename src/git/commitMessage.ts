@@ -75,6 +75,7 @@ export async function generateCommitMessage(
   const callOptions: CallOptions = {
     provider: decision.target.provider,
     model: decision.target.model,
+    fallbacks: decision.target.fallbacks,
     tools: [],
     // Inject system prompt via a leading user message
     // (system prompt handling varies by provider, but a user message always works)

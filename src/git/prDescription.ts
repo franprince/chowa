@@ -73,6 +73,7 @@ export async function generatePRDescription(
   const callOptions: CallOptions = {
     provider: decision.target.provider,
     model: decision.target.model,
+    fallbacks: decision.target.fallbacks,
     tools: [],
     messages: [
       { role: 'user', content: PR_DESCRIPTION_SYSTEM_PROMPT },

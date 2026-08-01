@@ -1,0 +1,120 @@
+---
+name: chowa
+description: >
+  Chōwa coding harness skill — mandatory guidelines for spec-driven pipeline
+  (spec → plan → execute), git branching, commit workflows, PR creation,
+  code quality verification, architecture boundaries, and model routing.
+  This repo is Chōwa's own source (dogfooding) — Claude Code should follow
+  these conventions when making any non-trivial change here.
+---
+
+# Chōwa Skill (Self-Hosted, Claude Code)
+
+Chōwa is installed in this workspace and is used to develop itself (dogfooding).
+This is the Claude Code variant of `.agents/skills/chowa/SKILL.md`, wired up
+through the `ClaudeCodeBridge` (`src/integrations/claude-code/bridge.ts`) and
+the `chowa claude-code-bridge` CLI command.
+
+## Workflow Rules
+
+When making changes to this codebase, **always follow these conventions**:
+
+### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
+
+For all feature requests and non-trivial changes, always follow this 3-stage lifecycle:
+
+1. **Stage 1: Specification (`spec.md`)** — problem statement, goals, non-goals,
+   affected interfaces, edge cases, acceptance criteria. Get explicit user
+   approval before Stage 2.
+2. **Stage 2: Implementation Plan (`implementation_plan.md`)** — files to
+   modify/create, component boundaries, test plan. Get explicit user approval
+   before writing code.
+3. **Persistence** — write both files to `specs/<YYYY-MM-DD>-<slug>/`, never
+   as loose root-level files, and add a row to `specs/INDEX.md`. Root-level
+   `spec.md`/`implementation_plan.md` get overwritten by the next feature's
+   docs with no record of what was approved — that's how intent drifts
+   across iterations. See `specs/INDEX.md` for the exact convention and
+   status values.
+3. **Stage 3: Execution & Verification** — implement the approved plan
+   (code + tests), then verify with `bun test`, `bun run check:imports`, and
+   `bun run build`. Ask the user before opening a PR.
+
+### 2. Branching & PR Workflow
+
+- Always create a new branch for features/fixes/tasks — never work or push
+  directly on `main`, `master`, or `develop`.
+- Always create a PR against the target base branch; ask the user first.
+
+### 3. Remote Update Checks
+
+Before starting work or committing, check the local branch is up to date:
+
+```bash
+bun run src/cli.ts check-update
+```
+
+### 4. Commit Workflow & Messages
+
+```bash
+bun run src/cli.ts commit
+```
+
+If Chōwa reports multiple clusters, commit each cluster separately. Commits
+must follow Conventional Commits: `type(scope): concise imperative description`.
+
+- Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`
+- Scopes: `core`, `adapters`, `router`, `git`, `cli`, `integrations`
+
+### 5. Code Quality & Build Verification
+
+Before committing: `bun test`, `bun run check:imports`, `bun run build`.
+
+### 6. Model Routing
+
+```bash
+bun run src/cli.ts route --kind <type> --complexity <level>
+```
+
+- Kinds: `mechanical`, `refactor`, `architecture`, `security`, `debug`
+- Complexity: `low`, `medium`, `high`
+
+### 7. PR Description Generation
+
+```bash
+bun run src/cli.ts pr --base <branch>
+```
+
+### 8. Claude Code Bridge
+
+For structured, non-interactive access to the same functionality (used by
+tooling rather than a human at a terminal), pipe a JSON request into:
+
+```bash
+bun run src/cli.ts claude-code-bridge
+```
+
+Accepts `{ action: 'call' | 'commit' | 'pr' | 'route' | 'models', ... }` on
+stdin and returns a `ClaudeCodeResponse` on stdout. See
+`src/integrations/claude-code/bridge.ts` for the request/response shapes.
+
+## Chōwa CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `bun run src/cli.ts check-update` | Check if local branch is behind remote |
+| `bun run src/cli.ts commit` | Scan diff, split into atomic clusters |
+| `bun run src/cli.ts route --kind <k> --complexity <c>` | Resolve task to model |
+| `bun run src/cli.ts pr --base <branch>` | Generate PR description |
+| `bun run src/cli.ts claude-code-bridge` | JSON-in/JSON-out bridge for tooling |
+| `bun run check:imports` | Verify dependency boundaries |
+| `bun test` | Run full test suite |
+| `bun run build` | Compile TypeScript cleanly |
+
+## Known Gap
+
+As of this writing, `chowa route`/`commit`/`pr` do **not** actually read
+`chowa.config.ts` — `loadPolicy()` in `src/cli.ts` returns a hardcoded policy
+and ignores `--config`. See
+`specs/2026-08-01-routing-config-wiring/` for the fix in progress. Until
+that lands, do not rely on editing `chowa.config.ts` to change routing
+behavior.

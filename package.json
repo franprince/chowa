@@ -22,7 +22,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:imports": "bun run scripts/check-imports.ts",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit -p tsconfig.lint.json",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
