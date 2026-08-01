@@ -21,7 +21,7 @@ For all feature requests and non-trivial changes, always follow this 3-stage lif
 1. **Stage 1: Specifications (`spec.md`)**:
    - Always start by creating a specification artifact (`spec.md` or `specifications.md`).
    - Define problem statement, goals, non-goals, input/output schemas, edge cases, and acceptance criteria.
-   - Confirm alignment with the user before proceeding to planning.
+   - Set `RequestFeedback: true` and **obtain explicit user approval on `spec.md`** before moving to Stage 2 (Implementation Plan).
 
 2. **Stage 2: Implementation Plan (`implementation_plan.md`)**:
    - Once specs are done, create the technical `implementation_plan.md` artifact.
