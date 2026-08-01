@@ -19,6 +19,7 @@ When making changes to this codebase, **always follow these conventions**:
 - **Always create a new branch** for new features, fixes, or tasks before making changes.
 - **Never push directly to `main`, `master`, or `develop`**.
 - Always create a **Pull Request (PR)** against the target branch (`develop` or `main`).
+- **Always ask the user** if they want to create a PR (with description and all) when creating a new branch and committing.
 
 ### 2. Before Committing
 

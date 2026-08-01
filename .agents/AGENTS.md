@@ -4,6 +4,7 @@
 - Always create a new feature/fix branch before making changes (never work or push directly on `main`, `master`, or `develop`)
 - Always create a Pull Request (PR) for merging changes into the target base branch (`develop` or `main`)
 - Never push directly to `main`, `master`, or `develop`
+- When creating a new branch and committing changes, **always ask the user if they want to create a PR** (including generating the PR description and submitting the PR)
 
 ## Commit Workflow
 - Before every commit, run `bun run src/cli.ts commit` to check for logical clusters
