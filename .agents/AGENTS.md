@@ -1,5 +1,10 @@
 # Chōwa Workspace Rules
 
+## Branching & PR Workflow
+- Always create a new feature/fix branch before making changes (never work or push directly on `main`, `master`, or `develop`)
+- Always create a Pull Request (PR) for merging changes into the target base branch (`develop` or `main`)
+- Never push directly to `main`, `master`, or `develop`
+
 ## Commit Workflow
 - Before every commit, run `bun run src/cli.ts commit` to check for logical clusters
 - If multiple clusters are found, commit each one separately as an atomic commit
