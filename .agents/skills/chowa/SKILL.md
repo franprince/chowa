@@ -26,7 +26,7 @@ For all feature requests and non-trivial changes, always follow this 3-stage lif
 2. **Stage 2: Implementation Plan (`implementation_plan.md`)**:
    - Once specs are done, create the technical `implementation_plan.md` artifact.
    - Detail architectural changes, files to modify/create, component boundaries, and verification plan.
-   - Set `RequestFeedback: true` and obtain explicit user approval before writing code.
+   - Set `RequestFeedback: true` and **obtain explicit user approval** before writing code.
 
 3. **Stage 3: Execution & Verification**:
    - Execute the approved plan (implementing code & unit tests).
