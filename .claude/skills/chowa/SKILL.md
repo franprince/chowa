@@ -42,7 +42,15 @@ For all feature requests and non-trivial changes, always follow this 3-stage lif
 ### 2. Branching & PR Workflow
 
 - Always create a new branch for features/fixes/tasks — never work or push
-  directly on `main`, `master`, or `develop`.
+  directly on `main` or `master`.
+- **Branch flow** (unless the user explicitly says otherwise):
+  - `fix/*`, `feat/*`, `docs/*`, `chore/*` etc. branch from `develop`, PR
+    **against `develop`**.
+  - `release/*` and `hotfix/*` branch from `develop` (a `hotfix/*` may branch
+    from `main` when patching a live incident) and PR **from there to
+    `main`**.
+  - Never PR or push directly to `main`/`master` outside of a `release/*` or
+    `hotfix/*` branch.
 - Always create a PR against the target base branch; ask the user first.
 
 ### 3. Remote Update Checks

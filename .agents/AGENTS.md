@@ -6,4 +6,8 @@
   convention. This keeps intent from drifting or being overwritten across
   iterations.
 - Use the `chowa` skill (`.agents/skills/chowa/SKILL.md`) for all spec, plan, branching, commit, PR, routing, quality, and architecture conventions.
-- Never push directly to `main`, `master`, or `develop`. Always work on dedicated feature branches and ask user before creating PRs.
+- Branch flow (unless told otherwise): `fix/*`/`feat/*`/`docs/*`/`chore/*` branch
+  from `develop` and PR against `develop`; `release/*`/`hotfix/*` branch from
+  `develop` and PR to `main`. Never push or PR directly to `main`/`master`
+  outside of a `release/*` or `hotfix/*` branch. Always ask the user before
+  creating a PR.
