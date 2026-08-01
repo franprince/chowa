@@ -86,6 +86,42 @@ export function resolve(
 }
 
 // ---------------------------------------------------------------------------
+// Model Tier Resolver
+// ---------------------------------------------------------------------------
+
+import type { AvailableModelInfo } from './types.js';
+
+/**
+ * Dynamically resolves a semantic model tier ('fast', 'balanced', 'reasoning', 'opus')
+ * to a specific model ID based on available models reported by the provider/environment.
+ */
+export function resolveModelTier(
+  target: RoutingTarget,
+  availableModels?: readonly AvailableModelInfo[],
+): RoutingTarget {
+  const modelStr = target.model;
+  const isTier = modelStr === 'fast' || modelStr === 'balanced' || modelStr === 'reasoning' || modelStr === 'opus';
+
+  if (!isTier || !availableModels || availableModels.length === 0) {
+    return target;
+  }
+
+  const match = availableModels.find(
+    (m) => m.provider === target.provider && m.tier === modelStr,
+  ) ?? availableModels.find((m) => m.tier === modelStr);
+
+  if (match) {
+    return {
+      provider: match.provider,
+      model: match.id,
+      fallbacks: target.fallbacks,
+    };
+  }
+
+  return target;
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -118,5 +154,10 @@ function buildMatchReason(profile: TaskProfile, rule: RoutingRule): string {
     ? matchParts.join(', ')
     : 'wildcard (matches all)';
 
-  return `Rule [priority=${rule.priority}, ${matchDesc}] matched ${profile.kind}/${profile.estimatedComplexity} → ${rule.target.provider}/${rule.target.model}`;
+  const fallbacksDesc = rule.target.fallbacks && rule.target.fallbacks.length > 0
+    ? ` (fallbacks: ${rule.target.fallbacks.map((f) => `${f.provider}/${f.model}`).join(', ')})`
+    : '';
+
+  return `Rule [priority=${rule.priority}, ${matchDesc}] matched ${profile.kind}/${profile.estimatedComplexity} → ${rule.target.provider}/${rule.target.model}${fallbacksDesc}`;
 }
+

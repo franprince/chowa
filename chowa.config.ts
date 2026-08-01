@@ -22,41 +22,71 @@ const config: ChowaConfig = {
       // Fast/cheap model for mechanical tasks (formatting, renaming, commit messages)
       {
         match: { kind: 'mechanical' },
-        target: { provider: 'gemini', model: 'gemini-3-flash' },
+        target: {
+          provider: 'gemini',
+          model: 'gemini-3.6-flash',
+          fallbacks: [{ provider: 'anthropic', model: 'claude-haiku' }],
+        },
         priority: 10,
       },
 
-      // Strongest model for security-sensitive changes — pinned regardless of cost
+      // Strongest reasoning for security-sensitive changes — pinned Opus with fallbacks
       {
         match: { kind: 'security' },
-        target: { provider: 'anthropic', model: 'claude-opus-4.6' },
+        target: {
+          provider: 'anthropic',
+          model: 'claude-opus-4.6',
+          fallbacks: [
+            { provider: 'gemini', model: 'gemini-3.6-pro' },
+            { provider: 'anthropic', model: 'claude-sonnet-4.6' },
+          ],
+        },
         priority: 100,
       },
 
       // Complex architecture decisions need the best reasoning
       {
         match: { kind: 'architecture', estimatedComplexity: 'high' },
-        target: { provider: 'anthropic', model: 'claude-opus-4.6' },
+        target: {
+          provider: 'anthropic',
+          model: 'claude-opus-4.6',
+          fallbacks: [
+            { provider: 'gemini', model: 'gemini-3.6-pro' },
+            { provider: 'anthropic', model: 'claude-sonnet-4.6' },
+          ],
+        },
         priority: 50,
       },
 
-      // High-complexity refactors benefit from strong reasoning
+      // Gemini 3.6 Flash/Pro workhorse for refactors with Sonnet fallback
       {
-        match: { kind: 'refactor', estimatedComplexity: 'high' },
-        target: { provider: 'anthropic', model: 'claude-sonnet-4.6' },
+        match: { kind: 'refactor' },
+        target: {
+          provider: 'gemini',
+          model: 'gemini-3.6-flash',
+          fallbacks: [{ provider: 'anthropic', model: 'claude-sonnet-4.6' }],
+        },
         priority: 40,
       },
 
-      // Debug tasks: good balance of reasoning and speed
+      // Debug tasks: Gemini 3.6 Flash speed & context with Sonnet fallback
       {
         match: { kind: 'debug' },
-        target: { provider: 'anthropic', model: 'claude-sonnet-4.6' },
+        target: {
+          provider: 'gemini',
+          model: 'gemini-3.6-flash',
+          fallbacks: [{ provider: 'anthropic', model: 'claude-sonnet-4.6' }],
+        },
         priority: 20,
       },
     ],
 
-    // Safe general-purpose default
-    defaultTarget: { provider: 'anthropic', model: 'claude-sonnet-4.6' },
+    // Safe general-purpose default workhorse
+    defaultTarget: {
+      provider: 'gemini',
+      model: 'gemini-3.6-flash',
+      fallbacks: [{ provider: 'anthropic', model: 'claude-sonnet-4.6' }],
+    },
   },
 };
 

@@ -181,6 +181,12 @@ export interface CallResult {
 
   /** Which model handled this call. */
   readonly model: string;
+
+  /** Whether a fallback target was used to serve this request. */
+  readonly usedFallback?: boolean;
+
+  /** Number of provider attempts executed. */
+  readonly attemptCount?: number;
 }
 
 // ---------------------------------------------------------------------------

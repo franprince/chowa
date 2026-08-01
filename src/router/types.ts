@@ -18,13 +18,28 @@ export interface TaskProfile {
 }
 
 // ---------------------------------------------------------------------------
+// Model Tiers & Information
+// ---------------------------------------------------------------------------
+
+/** Semantic model performance/capability tier. */
+export type ModelTier = 'fast' | 'balanced' | 'reasoning' | 'opus';
+
+export interface AvailableModelInfo {
+  readonly id: string;
+  readonly provider: string;
+  readonly tier: ModelTier;
+  readonly displayName?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Routing Target
 // ---------------------------------------------------------------------------
 
-/** A provider + model pair that a task should be routed to. */
+/** A provider + model pair (or semantic tier) that a task should be routed to. */
 export interface RoutingTarget {
   readonly provider: string;
-  readonly model: string;
+  readonly model: string | ModelTier;
+  readonly fallbacks?: readonly Omit<RoutingTarget, 'fallbacks'>[];
 }
 
 // ---------------------------------------------------------------------------

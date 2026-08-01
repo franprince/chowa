@@ -116,12 +116,14 @@ async function handleCheckUpdate(baseBranch?: string): Promise<void> {
 
 async function handleCommit(): Promise<void> {
   const { splitDiff } = await import('./git/diffSplitter.js');
+  const { generateCommitMessage } = await import('./git/commitMessage.js');
   const { GitOps } = await import('./git/gitOps.js');
+  const { ChowaClient } = await import('./client.js');
 
   const gitOps = new GitOps();
   await handleCheckUpdate();
 
-  const diff = await gitOps.getDiff();
+  const diff = (await gitOps.getDiff()) || (await gitOps.getStagedDiff());
 
   if (!diff.trim()) {
     console.log('No uncommitted changes detected.');
@@ -129,30 +131,81 @@ async function handleCommit(): Promise<void> {
   }
 
   const clusters = splitDiff(diff);
-  console.log(`Found ${clusters.length} logical change cluster(s):`);
+  console.log(`Found ${clusters.length} logical change cluster(s):\n`);
+
+  const client = new ChowaClient();
+  const policy = await loadPolicy();
 
   for (const cluster of clusters) {
-    console.log(`  - ${cluster.id}: ${cluster.files.join(', ')}`);
+    console.log(`📦 Cluster ${cluster.id} [${cluster.files.join(', ')}]:`);
+    const message = await generateCommitMessage(cluster, client, policy);
+    console.log(`   Suggested commit: "${message}"\n`);
   }
-
-  // TODO: Generate commit messages and commit each cluster
-  console.log('\nCommit message generation requires a configured transport.');
-  console.log('Use chowa.config.ts to configure your provider API keys.');
 }
 
 async function handlePR(baseBranch: string): Promise<void> {
   const { GitOps } = await import('./git/gitOps.js');
+  const { generatePRDescription } = await import('./git/prDescription.js');
+  const { ChowaClient } = await import('./client.js');
 
   const gitOps = new GitOps();
   await handleCheckUpdate(baseBranch);
 
   const currentBranch = await gitOps.getCurrentBranch();
+  console.log(`Generating PR description for ${currentBranch} → ${baseBranch}...\n`);
 
-  console.log(`Generating PR description for ${currentBranch} → ${baseBranch}`);
+  const commits = await gitOps.getCommitHistory(baseBranch);
+  const diff = await gitOps.getDiffAgainstBase(baseBranch);
 
-  // TODO: Wire up full PR description generation
-  console.log('PR description generation requires a configured transport.');
-  console.log('Use chowa.config.ts to configure your provider API keys.');
+  const client = new ChowaClient();
+  const policy = await loadPolicy();
+
+  const pr = await generatePRDescription(commits, diff, client, policy);
+
+  console.log(`# PR Description: ${currentBranch} → ${baseBranch}\n`);
+  console.log(`## Summary\n${pr.summary}\n`);
+  console.log(`## Changes\n${pr.changes.map((c) => `- ${c}`).join('\n')}\n`);
+  console.log(`## Testing Notes\n${pr.testing}\n`);
+  if (pr.breakingChanges) {
+    console.log(`## ⚠️ Breaking Changes\n${pr.breakingChanges}\n`);
+  }
+}
+
+async function handleAntigravityBridge(): Promise<void> {
+  const { AntigravityBridge } = await import('./integrations/antigravity/bridge.js');
+  const { ChowaClient } = await import('./client.js');
+
+  const client = new ChowaClient();
+  const policy = await loadPolicy();
+  const bridge = new AntigravityBridge(client, policy);
+
+  let input = '';
+  process.stdin.setEncoding('utf-8');
+
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+
+  if (!input.trim()) {
+    console.log(JSON.stringify({
+      success: false,
+      action: 'bridge',
+      error: 'Empty request input provided on stdin',
+    }));
+    return;
+  }
+
+  try {
+    const request = JSON.parse(input.trim());
+    const response = await bridge.handle(request);
+    console.log(JSON.stringify(response, null, 2));
+  } catch (error) {
+    console.log(JSON.stringify({
+      success: false,
+      action: 'bridge',
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +239,51 @@ async function loadPolicy() {
   };
 }
 
+async function handleModels(provider?: string): Promise<void> {
+  const { ChowaClient } = await import('./client.js');
+  const client = new ChowaClient();
+  const models = client.getAvailableModels(provider);
+
+  console.log(JSON.stringify(models, null, 2));
+}
+
+async function handleClaudeCodeBridge(): Promise<void> {
+  const { ClaudeCodeBridge } = await import('./integrations/claude-code/bridge.js');
+  const { ChowaClient } = await import('./client.js');
+
+  const client = new ChowaClient();
+  const policy = await loadPolicy();
+  const bridge = new ClaudeCodeBridge(client, policy);
+
+  let input = '';
+  process.stdin.setEncoding('utf-8');
+
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+
+  if (!input.trim()) {
+    console.log(JSON.stringify({
+      success: false,
+      action: 'bridge',
+      error: 'Empty request input provided on stdin',
+    }));
+    return;
+  }
+
+  try {
+    const request = JSON.parse(input.trim());
+    const response = await bridge.handle(request);
+    console.log(JSON.stringify(response, null, 2));
+  } catch (error) {
+    console.log(JSON.stringify({
+      success: false,
+      action: 'bridge',
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -216,6 +314,10 @@ async function main(): Promise<void> {
       await handleRoute(values.kind ?? 'mechanical', values.complexity ?? 'low');
       break;
 
+    case 'models':
+      await handleModels(values.provider);
+      break;
+
     case 'commit':
       await handleCommit();
       break;
@@ -239,8 +341,11 @@ async function main(): Promise<void> {
       break;
 
     case 'antigravity-bridge':
-      console.log('Antigravity bridge mode — listening for requests...');
-      // TODO: Start the bridge server/stdin listener
+      await handleAntigravityBridge();
+      break;
+
+    case 'claude-code-bridge':
+      await handleClaudeCodeBridge();
       break;
 
     default:
@@ -254,3 +359,4 @@ main().catch((error: unknown) => {
   console.error('Fatal error:', error);
   process.exitCode = 1;
 });
+
