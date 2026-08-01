@@ -88,8 +88,11 @@ async function handleSyncGlobal(): Promise<void> {
     const globalAgentsFile = join(globalConfigDir, 'AGENTS.md');
     const globalAgentsContent = `# Global Chōwa Workspace Rules
 
-- Use the \`chowa\` skill for all branching, commit, PR, routing, quality, and architecture conventions across all projects.
-- Never push directly to \`main\`, \`master\`, or \`develop\`. Always work on dedicated feature branches and ask user before creating PRs.
+- In any project that has Chōwa installed (as its own source, or as a
+  dependency), use the \`chowa\` skill for branching, commit, PR, routing,
+  and quality conventions.
+- Never push directly to \`main\` or \`master\`. Always work on dedicated
+  feature branches and ask the user before creating PRs.
 `;
     writeFileSync(globalAgentsFile, globalAgentsContent, 'utf-8');
     console.log('✅ Synced global rules to ~/.gemini/config/AGENTS.md');
@@ -101,8 +104,6 @@ async function handleSyncGlobal(): Promise<void> {
 async function handleCheckUpdate(baseBranch?: string): Promise<void> {
   const { GitOps } = await import('./git/gitOps.js');
   const gitOps = new GitOps();
-
-  await handleSyncGlobal();
 
   const status = await gitOps.checkRemoteUpdates('origin', baseBranch);
 
