@@ -1,104 +1,133 @@
 ---
 name: chowa
 description: >
-  Chōwa coding harness skill — mandatory guidelines for spec-driven pipeline
-  (spec → plan → execute), git branching, commit workflows, PR creation,
-  code quality verification, architecture boundaries, and model routing.
+  Chōwa coding harness skill — spec-driven pipeline (spec → plan → execute),
+  git branching, commit workflows, PR creation, code quality verification,
+  and model routing. Detects whether the current project is Chōwa's own
+  source, a project that depends on Chōwa, or a project without it, and
+  adapts its instructions accordingly.
 ---
 
-# Chōwa Skill (Self-Hosted)
+# Chōwa Skill
 
-Chōwa is installed in this workspace and is used to develop itself (dogfooding).
+Chōwa is a coding harness: a spec → plan → execute pipeline, atomic-commit
+enforcement, and model routing. This skill's job is to apply Chōwa's
+conventions when the current project actually uses Chōwa — never to recite
+Chōwa's own internal dev workflow at a project that doesn't.
 
-## Workflow Rules
+## Step 0: Detect which project this is
 
-When making changes to this codebase, **always follow these conventions**:
+Check the current working directory before following anything below:
+
+1. **Self-repo (dogfooding)** — `package.json` has `"name": "chowa"`, and
+   `src/cli.ts` and `chowa.config.ts` exist. This is Chōwa's own source.
+   Run its CLI from source: `bun run src/cli.ts <command>`.
+2. **Consumer (installed dependency)** — `chowa` appears in
+   `package.json` dependencies/devDependencies, or
+   `node_modules/.bin/chowa` exists. Run the installed binary, matching the
+   project's package manager: `npx chowa <command>` / `bunx chowa <command>`
+   / `pnpm exec chowa <command>`.
+3. **Not installed** — neither of the above. Chōwa isn't set up in this
+   project. **Say that plainly and stop** — do not apply the workflow rules
+   below as if they were in force. Check for the project's own conventions
+   instead (e.g. `.agents/workflows/*.md`, `CONTRIBUTING.md`, an existing
+   commit-message style in `git log`) and follow those. Only mention
+   installing Chōwa (`npm install --save-dev chowa` / `bun add -d chowa`) if
+   the user asks about it or brings up wanting this kind of workflow.
+
+In modes 1 and 2, `chowa <command>` below means the invocation for the
+detected mode (`bun run src/cli.ts <command>`, or `npx chowa <command>`,
+respectively).
+
+## Workflow Rules (modes 1 and 2 only)
 
 ### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
 
-For all feature requests and non-trivial changes, always follow this 3-stage lifecycle:
+For all feature requests and non-trivial changes, follow this 3-stage lifecycle:
 
-1. **Stage 1: Specifications (`spec.md`)**:
-   - Always start by creating a specification artifact under
-     `specs/<YYYY-MM-DD>-<slug>/spec.md` — never as a loose root-level file.
-     Add a row to `specs/INDEX.md`. This keeps every iteration's intent as a
-     permanent record instead of the next feature's spec silently
-     overwriting it.
-   - Define problem statement, goals, non-goals, input/output schemas, edge cases, and acceptance criteria.
-   - Set `RequestFeedback: true` and **obtain explicit user approval on `spec.md`** before moving to Stage 2 (Implementation Plan).
-
-2. **Stage 2: Implementation Plan (`implementation_plan.md`)**:
-   - Once specs are done, create the technical `implementation_plan.md` artifact in the same `specs/<YYYY-MM-DD>-<slug>/` directory.
-   - Detail architectural changes, files to modify/create, component boundaries, and verification plan.
-   - Set `RequestFeedback: true` and **obtain explicit user approval** before writing code.
-
-3. **Stage 3: Execution & Verification**:
-   - Execute the approved plan (implementing code & unit tests).
-   - Verify changes using `bun test`, `bun run check:imports`, and `bun run build`.
-   - **Always ask the user** if they want to create a Pull Request (with PR description and all) after committing on a new feature branch.
+1. **Stage 1: Specification (`spec.md`)** — problem statement, goals,
+   non-goals, input/output schemas, edge cases, and acceptance criteria.
+   Get explicit user approval before Stage 2.
+2. **Stage 2: Implementation Plan (`implementation_plan.md`)** — files to
+   modify/create, component boundaries, test plan. Get explicit user
+   approval before writing code.
+3. **Persistence** — write both files to `specs/<YYYY-MM-DD>-<slug>/`,
+   never as loose root-level files, and add a row to `specs/INDEX.md`
+   (create that layout if the project doesn't have one yet). Root-level
+   `spec.md`/`implementation_plan.md` get overwritten by the next feature's
+   docs with no record of what was approved — that's how intent drifts
+   across iterations.
+4. **Stage 3: Execution & Verification** — implement the approved plan
+   (code + tests), then verify with the project's own quality gates
+   (see §5). Always ask the user if they want a Pull Request opened after
+   committing on a new feature branch.
 
 ### 2. Branching & PR Workflow
 
-- **Always create a new branch** for new features, fixes, or tasks before making changes — never work or push directly on `main` or `master`.
-- **Branch flow** (unless the user explicitly says otherwise):
-  - `fix/*`, `feat/*`, `docs/*`, `chore/*`, etc. branch from `develop` and PR **against `develop`**.
-  - `release/*` and `hotfix/*` branch from `develop` (hotfix may branch from `main` when patching a live incident) and PR **from there to `main`**.
-  - **Never PR or push directly to `main`/`master`** outside of a `release/*` or `hotfix/*` branch.
-- **Always ask the user** if they want to create a PR (with PR description and all) whenever creating a new branch and committing.
+- Always create a new branch for features/fixes/tasks — never work or push
+  directly on `main` or `master`.
+- If the project uses a `develop` branch: `fix/*`, `feat/*`, `docs/*`,
+  `chore/*` etc. branch from `develop` and PR against `develop`; `release/*`
+  and `hotfix/*` branch from `develop` (a `hotfix/*` may branch from `main`
+  when patching a live incident) and PR from there to `main`. If the
+  project has no `develop` branch, branch from and PR against `main`
+  directly. Never push or PR straight to `main`/`master` outside that flow.
+- Always ask the user if they want a PR opened, whenever creating a new
+  branch and committing.
 
-### 3. Remote Update Checks & Global Sync
+### 3. Remote Update Checks
 
-- Before starting work or committing, check if the local branch is up to date with the remote (which also syncs global config):
-  ```bash
-  bun run src/cli.ts check-update
-  ```
+Before starting work or committing, check the local branch is up to date:
+
+```bash
+chowa check-update
+```
 
 ### 4. Commit Workflow & Messages
 
-- Run Chōwa's diff splitter to check if changes should be split into atomic commits:
-  ```bash
-  bun run src/cli.ts commit
-  ```
-- If Chōwa reports multiple clusters, **commit each cluster separately** as an atomic commit.
-- All commits **must** follow Conventional Commits format:
-  ```
-  type(scope): concise imperative description
-  ```
-- Valid types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`.
-- Valid scopes: `core`, `adapters`, `router`, `git`, `cli`, `integrations`.
+```bash
+chowa commit
+```
+
+If Chōwa reports multiple clusters, commit each cluster separately. Commits
+must follow Conventional Commits: `type(scope): concise imperative description`.
+
+- Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`
+- Scope: whatever the project uses (check recent `git log`, or an existing
+  `commitlint`/similar config); in Chōwa's own repo the scopes are `core`,
+  `adapters`, `router`, `git`, `cli`, `integrations`.
 
 ### 5. Code Quality & Build Verification
 
-Before committing changes, verify quality and safety:
-- Run `bun test` to ensure all tests pass.
-- Run `bun run check:imports` to verify one-way dependency boundaries (`integrations → core`, never reverse).
-- Run `bun run build` to verify TypeScript compiles cleanly.
+Before committing, run the *project's own* test/lint/build scripts (its
+`package.json` `scripts` — typically something like `test`, `lint`,
+`build`). Chōwa's model routing and commit-splitting don't replace a
+project's own quality gates.
 
 ### 6. Model Routing
 
-Check which model Chōwa recommends for a task:
 ```bash
-bun run src/cli.ts route --kind <type> --complexity <level>
+chowa route --kind <type> --complexity <level>
 ```
-- Task kinds: `mechanical`, `refactor`, `architecture`, `security`, `debug`
+
+- Kinds: `mechanical`, `refactor`, `architecture`, `security`, `debug`
 - Complexity: `low`, `medium`, `high`
 
 ### 7. PR Description Generation
 
-Generate PR descriptions from commit history:
 ```bash
-bun run src/cli.ts pr --base <branch>
+chowa pr --base <branch>
 ```
 
 ## Chōwa CLI Reference
 
 | Command | Description |
 |---------|-------------|
-| `bun run src/cli.ts check-update` | Check if local branch is behind remote & sync global rules |
-| `bun run src/cli.ts sync-global` | Sync local skill & rules to ~/.gemini/config/ |
-| `bun run src/cli.ts commit` | Scan diff, split into atomic clusters |
-| `bun run src/cli.ts route --kind <k> --complexity <c>` | Resolve task to model |
-| `bun run src/cli.ts pr --base <branch>` | Generate PR description |
-| `bun run check:imports` | Verify dependency boundaries |
-| `bun test` | Run full test suite |
-| `bun run build` | Compile TypeScript cleanly |
+| `chowa check-update` | Check if local branch is behind remote |
+| `chowa commit` | Scan diff, split into atomic clusters |
+| `chowa route --kind <k> --complexity <c>` | Resolve task to model |
+| `chowa pr --base <branch>` | Generate PR description |
+| `chowa sync-global` | (explicit only, self-repo mode) Sync this skill and workspace rules to `~/.gemini/config/` |
+
+(Self-repo mode only, Chōwa's own internal build: `bun run check:imports`,
+`bun test`, `bun run build`.)
