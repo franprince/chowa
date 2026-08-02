@@ -94,6 +94,29 @@ bun install
 bun run src/cli.ts install --agent gemini
 ```
 
+### Local CLI access via a sibling checkout (optional)
+
+Chōwa isn't published to a registry, so if you want `chowa` runnable through your package manager in another project (`bunx chowa commit`) instead of always invoking a full checkout by path, the option is a local `file:` dependency pointing at a sibling clone of this repo.
+
+It has one sharp edge: `file:` dependencies resolve relative to the *consuming* project's location on disk. That sibling checkout exists only on the machine where you cloned it next to your project — not in CI runners, Docker builds, or any other machine that clones just the consumer repo. A plain `bun install`/`npm install` there fails immediately (`ENOENT: failed opening cache/package/version dir for package chowa`), taking down the whole install, even though nothing in the project actually imports `chowa` at build or run time.
+
+Declare it under `optionalDependencies`, not `dependencies`/`devDependencies`, and have CI skip optional installs:
+
+```json
+{
+  "optionalDependencies": {
+    "chowa": "file:../chowa"
+  }
+}
+```
+
+```bash
+bun install --frozen-lockfile --omit=optional
+# npm: npm ci --omit=optional
+```
+
+This keeps `bunx chowa commit` / `chowa pr` working locally while making CI installs independent of the sibling checkout entirely.
+
 ### Runtime
 
 The bundled engine runs on **Node 20+** or Bun. One caveat: reading a `chowa.config.**ts**` at runtime needs TypeScript type stripping, which Node only enables unflagged from 22.18. On older Node, use `chowa.config.js` — it needs no type stripping and works everywhere. Bun reads either natively. Chōwa tells you which applies if it hits the case.
