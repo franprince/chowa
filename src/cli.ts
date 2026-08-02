@@ -31,6 +31,8 @@ Commands:
   route      Resolve a task profile to a provider/model
   commit     Split diff into atomic commits with Conventional Commits messages
   pr         Generate a PR description from branch history
+  init       Scaffold a chowa.config.js for this project
+  always-on  Apply (or stop applying) Chōwa's workflow to every project [on|off]
   install    Install the chowa skill for a harness with no plugin system
   help       Show this help message
 
@@ -48,6 +50,8 @@ Examples:
   chowa route --kind architecture --complexity high
   chowa commit
   chowa pr --base main
+  chowa init
+  chowa always-on on
   chowa install --agent gemini
 
 Claude Code doesn't need "install" — it gets Chōwa as a plugin:
@@ -111,6 +115,50 @@ async function handleInstall(agent: string | undefined): Promise<void> {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   }
+}
+
+async function handleInit(): Promise<void> {
+  const { planInit, defaultConfigFileContents } = await import('./integrations/initConfig.js');
+
+  try {
+    const plan = planInit();
+    writeFileSync(plan.targetPath, defaultConfigFileContents(), 'utf-8');
+    console.log(`✅ Wrote ${plan.targetPath}`);
+    console.log(`\nEdit routing.rules in ${plan.targetPath} to customize model routing.`);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}
+
+async function handleAlwaysOn(arg: string | undefined): Promise<void> {
+  const { defaultPreferencesPath, readPreferences, serializePreferences } = await import(
+    './integrations/preferences.js'
+  );
+
+  const path = defaultPreferencesPath(homedir());
+
+  if (arg !== undefined && arg !== 'on' && arg !== 'off') {
+    console.error(
+      `Unknown argument "${arg}" for "chowa always-on". Use "on", "off", or omit it to check status.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  if (arg === 'on' || arg === 'off') {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, serializePreferences({ alwaysOn: arg === 'on' }), 'utf-8');
+    console.log(
+      arg === 'on'
+        ? `✅ Chōwa's workflow now applies to every project you work in (${path}).`
+        : `✅ Chōwa's workflow now only applies to projects that opt in.`,
+    );
+    return;
+  }
+
+  const prefs = readPreferences(path);
+  console.log(`Always-on: ${prefs.alwaysOn ? 'enabled' : 'disabled'}`);
 }
 
 async function handleCheckUpdate(baseBranch?: string): Promise<void> {
@@ -322,6 +370,14 @@ async function main(): Promise<void> {
     case 'check-update':
     case 'update-check':
       await handleCheckUpdate(values.base);
+      break;
+
+    case 'init':
+      await handleInit();
+      break;
+
+    case 'always-on':
+      await handleAlwaysOn(positionals[1]);
       break;
 
     case 'install':
