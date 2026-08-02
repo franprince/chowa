@@ -112,5 +112,9 @@ describe('install', () => {
     it('makes no claim about applying across all projects', () => {
       expect(content).not.toMatch(/all projects/i);
     });
+
+    it('mentions the always-on preference as an explicit, personal opt-in', () => {
+      expect(content).toMatch(/chowa always-on/);
+    });
   });
 });

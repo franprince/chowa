@@ -109,8 +109,11 @@ export function globalRulesContent(): string {
   return `# Global Chōwa Workspace Rules
 
 - These conventions apply **only** in projects set up for Chōwa: Chōwa's own
-  source, or a project with a \`chowa.config.ts\`, \`chowa.config.js\`, or
-  \`chowa.config.mjs\` at its root. In any other project, follow that
+  source, a project with a \`chowa.config.ts\`, \`chowa.config.js\`, or
+  \`chowa.config.mjs\` at its root, \`chowa\` listed as a project dependency,
+  an existing \`specs/INDEX.md\` following Chōwa's spec convention, or (for
+  every project you personally work in) \`chowa always-on on\`. In any
+  other project, follow that
   project's own conventions instead — do not apply the rules below.
 - In a Chōwa project, use the \`chowa\` skill for branching, commit, PR,
   routing, and quality conventions.
