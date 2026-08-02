@@ -1,7 +1,7 @@
 # Spec: Delegate mechanical sub-tasks to a cheaper model during live pipeline execution
 
-Status: **Draft** — open questions resolved below; awaiting explicit approval
-to move to Stage 2 (implementation plan).
+Status: **Approved** — 2026-08-02. Open questions resolved (see Resolved
+Questions below); `implementation_plan.md` drafted for Stage 2.
 
 Resolutions: (1) adopt — the guidance goes into both the canonical skill and
 this repo's self-hosted skill, i.e. "for all projects" including Chōwa's own;
