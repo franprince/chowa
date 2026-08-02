@@ -23,24 +23,42 @@ those apart.
 
 ## Step 0: Detect which project this is
 
-Check the current working directory before following anything below:
+Check the current working directory — and your own persistent preference —
+before following anything below:
 
 1. **Self-repo (dogfooding)** — `package.json` has `"name": "chowa"`, and
    `src/cli.ts` exists. This is Chōwa's own source; run its CLI from source.
-2. **Chōwa project** — a `chowa.config.ts`, `chowa.config.js`, or
-   `chowa.config.mjs` exists at the project root. The project has opted in.
-3. **Unrelated project** — neither of the above. **Say that plainly and
-   stop** — do not apply the workflow rules below as if they were in force.
-   Follow the project's own conventions instead (`CONTRIBUTING.md`,
-   `.agents/workflows/*.md`, or the commit style already visible in
-   `git log`). Only raise adopting Chōwa if the user asks, or brings up
-   wanting this kind of workflow; adopting it means adding a
-   `chowa.config.js` to the project root.
+2. **Chōwa project** — any of the following holds:
+   - a `chowa.config.ts`, `chowa.config.js`, or `chowa.config.mjs` exists at
+     the project root;
+   - `chowa` is listed in `dependencies` or `devDependencies` of the
+     project's `package.json`;
+   - `specs/INDEX.md` exists at the project root — the project already
+     follows Chōwa's own spec → plan → execute convention by hand;
+   - the user explicitly asks, in this conversation, to use Chōwa's
+     conventions here — apply Mode 2 for the rest of the session, and
+     mention once that `chowa init` would make it persist across sessions;
+   - you have a personal always-on preference set: run `chowa always-on`
+     with no argument to check. If enabled, treat *every* project as
+     Mode 2, regardless of the project-level signals above — routing falls
+     back to the built-in default policy in projects with no config of
+     their own.
+   The project has opted in, via any one of the above.
+3. **Unrelated project** — none of the above. Say that plainly, **once per
+   session, not on every subsequent turn** — then offer, a single time, to
+   set the project up: `chowa init` (scaffolds a `chowa.config.js` for this
+   project only) or `chowa always-on on` (applies Chōwa's workflow to every
+   project you personally work in, from now on). If the user declines or
+   doesn't respond, defer to the project's own conventions
+   (`CONTRIBUTING.md`, `.agents/workflows/*.md`, or the commit style
+   already visible in `git log`) for the rest of the session — don't ask
+   again, and don't apply the workflow rules below as if they were in
+   force.
 
-Mode 3 is a stop, not a fallback. A user working in an unrelated project
-should not have Chōwa's branching rules, spec pipeline, or commit
-conventions applied to their work because a plugin happened to be installed
-globally.
+Absent an onboarding acceptance, Mode 3 is still a stop, not a fallback. A
+user working in an unrelated project who declines onboarding should not
+have Chōwa's branching rules, spec pipeline, or commit conventions applied
+to their work because a plugin happened to be installed globally.
 
 ### Running the CLI
 
@@ -151,6 +169,8 @@ chowa pr --base <branch>
 | `chowa commit` | Scan diff, split into atomic clusters |
 | `chowa route --kind <k> --complexity <c>` | Resolve task to model |
 | `chowa pr --base <branch>` | Generate PR description |
+| `chowa init` | Scaffold a `chowa.config.js` for this project |
+| `chowa always-on [on\|off]` | Apply (or stop applying) Chōwa's workflow to every project, regardless of per-project signals; no argument checks current status |
 | `chowa install --agent <harness>` | Install this skill for a harness without a plugin system (e.g. `gemini`) |
 
 Chōwa reads its routing policy from `chowa.config.ts`, `chowa.config.js`, or

@@ -78,7 +78,7 @@ Two commands. No clone, no `npm install`, no copying files around — the engine
 /plugin install chowa@chowa
 ```
 
-Then opt a project in by adding a `chowa.config.ts` (or `.js`/`.mjs`) at its root. Without one, the skill deliberately stays out of the way and defers to whatever conventions that project already has — installing Chōwa means having it available, not applying it everywhere.
+Then opt a project in: add a `chowa.config.ts` (or `.js`/`.mjs`) at its root, add `chowa` as a project dependency, or just ask for it in conversation. The skill also recognizes an existing `specs/INDEX.md` as a sign the project already follows Chōwa's spec convention by hand. Without any of those, the skill stays out of the way and defers to whatever conventions that project already has, offering once to run `chowa init` and scaffold a config for you. Want Chōwa applied to every project you personally work in, no per-project opt-in needed? Run `chowa always-on on` — installing Chōwa means having it available, not applying it everywhere, unless you say otherwise.
 
 **If `marketplace add` fails to clone:** GitHub `owner/repo` shorthand clones over SSH by default. If you authenticate over HTTPS (`gh auth login`), set `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`. This is the most common first-run problem.
 
