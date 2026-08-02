@@ -47,18 +47,17 @@ globally.
 `chowa <command>` throughout this document means the invocation for the
 detected mode:
 
+<!-- chowa:invocation:start -->
 | Mode | Invocation |
 |---|---|
 | 1 — self-repo | `bun run src/cli.ts <command>` |
-| 2 — Chōwa project | `chowa <command>` |
+| 2 — Chōwa project | `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" <command>` |
 
-In mode 2, `chowa` is whatever this harness was given when the skill was
-installed — typically the bundled engine at
-`~/.gemini/config/skills/chowa/dist/cli.js`, run with `bun` when it is on
-`PATH` and `node` otherwise. `bun` reads a `chowa.config.ts` natively;
-`node` needs >= 22.18 for that, though a `chowa.config.js` works on any
-version. If neither runtime is available, say so and stop rather than
-guessing.
+Prefer `bun "${CLAUDE_PLUGIN_ROOT}/dist/cli.js"` when `bun` is on `PATH`:
+it reads a `chowa.config.ts` natively, whereas `node` needs >= 22.18 for
+that (a `chowa.config.js` works on any version). If neither `bun` nor
+`node` is available, say so and stop rather than guessing.
+<!-- chowa:invocation:end -->
 
 ## Workflow Rules (modes 1 and 2 only)
 

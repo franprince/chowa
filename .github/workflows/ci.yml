@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+env:
+  # Bundle output is byte-reproducible within a Bun version but not
+  # guaranteed across them. An unpinned toolchain would fail the freshness
+  # check below on a bundle nobody touched, so this pin is load-bearing.
+  # Bumping it lands the resulting bundle churn in its own commit.
+  BUN_VERSION: '1.3.5'
+
+jobs:
+  quality:
+    name: Tests, boundaries, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install --frozen-lockfile
+
+      - name: Tests
+        run: bun test
+
+      - name: Import boundaries
+        run: bun run check:imports
+
+      - name: Build
+        run: bun run build
+
+      - name: Type-check (including chowa.config.ts)
+        run: bun run lint
+
+      - name: Portable skill is in sync with the canonical one
+        run: bun run check:skill
+
+  no-bundle-off-main:
+    name: No committed bundle outside main
+    runs-on: ubuntu-latest
+    # `github.base_ref` is set only on pull_request events; on push it's empty
+    # and `github.ref_name` is the branch. Testing only one of them would run
+    # this job on a push to main, where the bundle is *supposed* to be tracked.
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref != 'main') ||
+      (github.event_name == 'push' && github.ref_name != 'main')
+    steps:
+      - uses: actions/checkout@v4
+
+      # The bundle lives only on main, built during the release/* process, so
+      # develop and feature branches never carry a generated file and never
+      # conflict on one. `plugins/chowa/dist/` is un-ignored (it has to be,
+      # for main), so an incautious `git add -A` can commit it here by
+      # accident — this is what catches that.
+      - name: Assert plugins/chowa/dist/ is not tracked
+        run: |
+          if git ls-files --error-unmatch plugins/chowa/dist/ >/dev/null 2>&1; then
+            echo "::error::plugins/chowa/dist/ is committed on this branch."
+            echo "The bundled engine belongs only on main, built during release/*."
+            echo "Remove it with: git rm -r --cached plugins/chowa/dist/"
+            exit 1
+          fi
+          echo "OK — no bundle committed off main."
+
+  bundle-freshness:
+    name: Committed bundle matches its source
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'push' && github.ref_name == 'main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install --frozen-lockfile
+
+      # The failure this exists to prevent: source edited, skill updated,
+      # release cut, bundle never rebuilt — so the plugin ships a current
+      # skill driving a stale engine, silently, with no error anywhere.
+      - name: Rebuild the bundle and assert it is unchanged
+        run: |
+          # Assert it's tracked first. `git diff` reports nothing for an
+          # untracked file, so a missing bundle would otherwise pass this
+          # check and ship a plugin with no engine.
+          if ! git ls-files --error-unmatch plugins/chowa/dist/cli.js >/dev/null 2>&1; then
+            echo "::error::plugins/chowa/dist/cli.js is not committed."
+            echo "main must carry the bundle. Run 'bun run build:plugin' and commit it."
+            exit 1
+          fi
+
+          bun run build:plugin
+          if ! git diff --exit-code -- plugins/chowa/dist/; then
+            echo "::error::plugins/chowa/dist/cli.js is stale."
+            echo "Run 'bun run build:plugin' and commit the result."
+            exit 1
+          fi
+
+      - name: Bundle runs standalone
+        run: |
+          cd "$(mktemp -d)"
+          node "$GITHUB_WORKSPACE/plugins/chowa/dist/cli.js" route \
+            --kind architecture --complexity high > /dev/null
+          echo "OK — bundle executes with no node_modules present."

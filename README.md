@@ -2,7 +2,9 @@
 
 > *Harmony across providers* — A coding harness that gives you consistent LLM behavior regardless of which model is doing the work.
 
-Chōwa sits between your application code and LLM providers (Anthropic, OpenAI, Gemini, local models) as a normalization layer for **tool-calling**, **git workflow enforcement**, and **model routing**.
+Chōwa is a **CLI plus a Claude Code skill**. It enforces a spec → plan → execute pipeline, splits diffs into atomic Conventional Commits, generates PR descriptions, and routes tasks to the right model — normalizing tool-calling across Anthropic, OpenAI, Gemini and local models underneath.
+
+It is not a library you import. There is no npm package; the engine ships inside the plugin. See [Install](#install).
 
 ## Why Chōwa?
 
@@ -11,7 +13,7 @@ When using LLMs as coding agents, every provider has different:
 - **Response shapes** — different nesting, different block types, different quirks
 - **Reliability** — some need JSON repair, some need retry loops
 
-Chōwa normalizes all of this so your application code never touches provider-native formats. On top of that, it enforces git workflow conventions (atomic commits, Conventional Commits, PR descriptions) and routes tasks to the right model based on complexity.
+Chōwa normalizes all of this behind one CLI, so the workflow you get doesn't change when the model does. On top of that it enforces git workflow conventions (atomic commits, Conventional Commits, PR descriptions) and routes tasks by complexity.
 
 ## Architecture
 
@@ -65,22 +67,68 @@ graph TD
 
 **Dependencies flow one direction: integrations → core, never reverse.** No file under `src/core/`, `src/adapters/`, `src/router/`, or `src/git/` may import from `src/integrations/`. This is enforced by a boundary test and a standalone check script.
 
-## Quick Start
+## Install
+
+### Claude Code
+
+Two commands. No clone, no `npm install`, no copying files around — the engine ships inside the plugin.
+
+```
+/plugin marketplace add franprince/chowa
+/plugin install chowa@chowa
+```
+
+Then opt a project in by adding a `chowa.config.ts` (or `.js`/`.mjs`) at its root. Without one, the skill deliberately stays out of the way and defers to whatever conventions that project already has — installing Chōwa means having it available, not applying it everywhere.
+
+**If `marketplace add` fails to clone:** GitHub `owner/repo` shorthand clones over SSH by default. If you authenticate over HTTPS (`gh auth login`), set `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`. This is the most common first-run problem.
+
+**Migrating from the manual install:** delete any hand-copied `~/.claude/skills/chowa/SKILL.md`. It will otherwise sit alongside the plugin's copy and the two can disagree.
+
+### Other harnesses (Gemini, Antigravity)
+
+These have no plugin system, so they still need a file drop, and — with npm out of the picture — a checkout of this repo:
 
 ```bash
-# Install
+git clone https://github.com/franprince/chowa.git && cd chowa
 bun install
+bun run src/cli.ts install --agent gemini
+```
 
-# Run tests
-bun test
+### Integration pitfall: `chowa` as a local `file:` dependency breaks consumer CI
 
-# Check import boundaries
-bun run check:imports
+When `chowa` is added to a project via `bunx chowa init` (or manually) as a `file:../chowa`-style sibling-directory dependency, it MUST be declared under `optionalDependencies`, not `dependencies`/`devDependencies`.
 
-# Type-check everything, including chowa.config.ts
-bun run lint
+**Why:** `file:` dependencies resolve relative to the consuming project's location on disk. That sibling checkout only exists on the machine where `chowa` was cloned next to the project — it does not exist in CI runners, Docker builds, or any other machine that clones just the consumer repo. A plain `bun install` (or `npm install`) there fails immediately with `ENOENT: failed opening cache/package/version dir for package chowa`, taking down the whole install — even though chowa itself is never imported by application code and isn't needed to build, test, or run the project.
 
-# Use the CLI — routing policy is read from chowa.config.ts (or --config <path>)
+**Required setup in the consumer project:**
+
+1. `package.json`:
+   ```json
+   "optionalDependencies": {
+     "chowa": "file:../chowa"
+   }
+   ```
+2. Any CI workflow install step:
+   ```bash
+   bun install --frozen-lockfile --omit=optional
+   ```
+   *(npm equivalent: `npm ci --omit=optional`)*
+
+This keeps `bunx chowa commit` / `chowa pr` working locally for the maintainer while making CI installs independent of the sibling checkout.
+
+If chowa's own init/setup flow writes the dependency entry into a project's `package.json`, it should write it under `optionalDependencies` by default, not `devDependencies` — this failure mode is not project-specific and will recur in every consumer repo otherwise.
+
+### Runtime
+
+The bundled engine runs on **Node 20+** or Bun. One caveat: reading a `chowa.config.**ts**` at runtime needs TypeScript type stripping, which Node only enables unflagged from 22.18. On older Node, use `chowa.config.js` — it needs no type stripping and works everywhere. Bun reads either natively. Chōwa tells you which applies if it hits the case.
+
+## Working on Chōwa itself
+
+```bash
+bun install
+bun run verify          # tests + import boundaries + build + type-check
+
+# The CLI, from source
 bun run src/cli.ts route --kind architecture --complexity high
 bun run src/cli.ts commit
 bun run src/cli.ts pr --base main
@@ -90,7 +138,18 @@ bun run src/cli.ts route --kind mechanical --complexity low --config ./my-chowa.
 # Structured JSON-in/JSON-out bridges for agent tooling
 bun run src/cli.ts claude-code-bridge   # reads a request from stdin
 bun run src/cli.ts antigravity-bridge   # reads a request from stdin
+
+# Plugin maintenance
+bun run sync:skill      # regenerate .agents/ skill from the canonical one
+bun run build:plugin    # rebuild the bundled engine (release/* branches only)
 ```
+
+### How the plugin is distributed
+
+This repository *is* the distribution channel — the marketplace catalog lives at `.claude-plugin/marketplace.json` and serves the plugin in `plugins/chowa/`.
+
+- `plugins/chowa/skills/chowa/SKILL.md` is the **canonical** skill. `.agents/skills/chowa/SKILL.md` is generated from it by `bun run sync:skill`; don't edit it by hand. `.claude/skills/chowa/SKILL.md` is project-local to this repo and governs work here only.
+- `plugins/chowa/dist/cli.js` is the bundled engine. It exists **only on `main`**, built during the `release/*` process, so `develop` and feature branches never carry a generated file and never conflict on one. CI enforces both halves: it fails a PR into `main` whose bundle is stale, and fails a PR anywhere else that commits one.
 
 ## Project Structure
 

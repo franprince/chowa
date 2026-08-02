@@ -8,22 +8,17 @@
   "bin": {
     "chowa": "./dist/cli.js"
   },
-  "exports": {
-    ".": "./dist/index.js",
-    "./core": "./dist/core/index.js",
-    "./adapters": "./dist/adapters/index.js",
-    "./router": "./dist/router/index.js",
-    "./git": "./dist/git/index.js",
-    "./client": "./dist/client.js"
-  },
   "scripts": {
     "build": "tsc",
+    "build:plugin": "bun build src/cli.ts --target=node --outfile=plugins/chowa/dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:imports": "bun run scripts/check-imports.ts",
+    "sync:skill": "bun run scripts/sync-skill.ts",
+    "check:skill": "bun run scripts/sync-skill.ts --check",
     "lint": "tsc --noEmit -p tsconfig.lint.json",
-    "prepublishOnly": "bun run build"
+    "verify": "bun test && bun run check:imports && bun run build && bun run lint"
   },
   "keywords": [
     "llm",
