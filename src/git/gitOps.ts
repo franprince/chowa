@@ -44,7 +44,11 @@ export class GitOps {
    * Equivalent to `git diff base...HEAD`.
    */
   async getDiffAgainstBase(baseBranch: string): Promise<string> {
-    return this.git.diff([`${baseBranch}...HEAD`]);
+    try {
+      return await this.git.diff([`${baseBranch}...HEAD`]);
+    } catch {
+      return await this.git.diff([`origin/${baseBranch}...HEAD`]);
+    }
   }
 
   /**
@@ -68,7 +72,12 @@ export class GitOps {
    * Returns commits in chronological order (oldest first).
    */
   async getCommitHistory(baseBranch: string): Promise<CommitInfo[]> {
-    const log = await this.git.log({ from: baseBranch, to: 'HEAD' });
+    let log;
+    try {
+      log = await this.git.log({ from: baseBranch, to: 'HEAD' });
+    } catch {
+      log = await this.git.log({ from: `origin/${baseBranch}`, to: 'HEAD' });
+    }
 
     const commits: CommitInfo[] = [];
     for (const entry of log.all) {

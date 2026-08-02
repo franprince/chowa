@@ -31,6 +31,7 @@ Commands:
   route      Resolve a task profile to a provider/model
   commit     Split diff into atomic commits with Conventional Commits messages
   pr         Generate a PR description from branch history
+  install    Install the chowa skill for a harness with no plugin system
   help       Show this help message
 
 Options:
@@ -39,13 +40,19 @@ Options:
   --kind <type>         Task kind (mechanical, refactor, architecture, security, debug)
   --complexity <level>  Task complexity (low, medium, high)
   --base <branch>       Base branch for PR description (default: main)
-  --config <path>       Path to chowa.config.ts (default: ./chowa.config.ts)
+  --config <path>       Path to chowa.config.{ts,js,mjs} (default: probed in cwd)
+  --agent <harness>     Target harness for "install" (gemini)
   --help                Show this help message
 
 Examples:
   chowa route --kind architecture --complexity high
   chowa commit
   chowa pr --base main
+  chowa install --agent gemini
+
+Claude Code doesn't need "install" — it gets Chōwa as a plugin:
+  /plugin marketplace add franprince/chowa
+  /plugin install chowa@chowa
 `);
 }
 
@@ -66,38 +73,43 @@ async function handleRoute(kind: string, complexity: string, configPath?: string
   console.log(JSON.stringify(decision, null, 2));
 }
 
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { homedir } from 'node:os';
 
-async function handleSyncGlobal(): Promise<void> {
-  const globalConfigDir = join(homedir(), '.gemini', 'config');
-  const globalSkillDir = join(globalConfigDir, 'skills', 'chowa');
+async function handleInstall(agent: string | undefined): Promise<void> {
+  const { planInstall, SUPPORTED_AGENTS, AGENT_TARGETS } = await import(
+    './integrations/install.js'
+  );
+
+  if (!agent) {
+    console.error(
+      `chowa install requires --agent <harness>. Supported: ${SUPPORTED_AGENTS.join(', ')}.\n` +
+        `Claude Code doesn't use this command — install the plugin instead:\n` +
+        `  /plugin marketplace add franprince/chowa\n` +
+        `  /plugin install chowa@chowa`,
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   try {
-    if (!existsSync(globalSkillDir)) {
-      mkdirSync(globalSkillDir, { recursive: true });
-    }
+    // Search from this module's own directory as well as the working
+    // directory, so the command works from `src/cli.ts`, from `dist/`, or
+    // from a subdirectory of the repo.
+    const plan = planInstall(agent, homedir(), [import.meta.dirname, process.cwd()]);
 
-    const localSkill = join(process.cwd(), '.agents', 'skills', 'chowa', 'SKILL.md');
-    if (existsSync(localSkill)) {
-      copyFileSync(localSkill, join(globalSkillDir, 'SKILL.md'));
-      console.log('✅ Synced chowa skill to ~/.gemini/config/skills/chowa/SKILL.md');
-    }
+    mkdirSync(dirname(plan.skillDestination), { recursive: true });
+    copyFileSync(plan.skillSource, plan.skillDestination);
+    console.log(`✅ Installed the chowa skill to ${plan.skillDestination}`);
 
-    const globalAgentsFile = join(globalConfigDir, 'AGENTS.md');
-    const globalAgentsContent = `# Global Chōwa Workspace Rules
-
-- In any project that has Chōwa installed (as its own source, or as a
-  dependency), use the \`chowa\` skill for branching, commit, PR, routing,
-  and quality conventions.
-- Never push directly to \`main\` or \`master\`. Always work on dedicated
-  feature branches and ask the user before creating PRs.
-`;
-    writeFileSync(globalAgentsFile, globalAgentsContent, 'utf-8');
-    console.log('✅ Synced global rules to ~/.gemini/config/AGENTS.md');
+    const { globalRulesContent } = await import('./integrations/install.js');
+    writeFileSync(plan.rulesDestination, globalRulesContent(), 'utf-8');
+    console.log(`✅ Wrote workspace rules to ${plan.rulesDestination}`);
+    console.log(`\n${AGENT_TARGETS[agent]!.label} will pick these up on its next session.`);
   } catch (error) {
-    console.error('Failed to sync global rules:', error);
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
   }
 }
 
@@ -278,6 +290,7 @@ async function main(): Promise<void> {
       complexity: { type: 'string', default: 'low' },
       base: { type: 'string', default: 'main' },
       config: { type: 'string' },
+      agent: { type: 'string' },
       help: { type: 'boolean', default: false },
     },
   });
@@ -311,8 +324,16 @@ async function main(): Promise<void> {
       await handleCheckUpdate(values.base);
       break;
 
+    case 'install':
+      await handleInstall(values.agent);
+      break;
+
     case 'sync-global':
-      await handleSyncGlobal();
+      console.warn(
+        `⚠️  "chowa sync-global" is deprecated — use "chowa install --agent gemini".\n` +
+          `   It still works and will be removed in a future release.\n`,
+      );
+      await handleInstall(values.agent ?? 'gemini');
       break;
 
     case 'call':

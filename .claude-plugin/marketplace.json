@@ -1,0 +1,14 @@
+{
+  "name": "chowa",
+  "owner": {
+    "name": "Fran",
+    "url": "https://github.com/franprince"
+  },
+  "plugins": [
+    {
+      "name": "chowa",
+      "source": "./plugins/chowa",
+      "description": "Spec-driven pipeline, atomic commits, PR generation, and model routing — with the engine bundled in"
+    }
+  ]
+}

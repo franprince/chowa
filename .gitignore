@@ -4,6 +4,12 @@ node_modules/
 # Build output
 dist/
 
+# ...except the plugin's bundled engine, which is a shipped artifact.
+# `dist/` above has no leading slash, so it matches at any depth and would
+# otherwise swallow this silently — leaving the plugin with no engine and
+# no error until someone installs it.
+!plugins/chowa/dist/
+
 # Environment
 .env
 .env.local

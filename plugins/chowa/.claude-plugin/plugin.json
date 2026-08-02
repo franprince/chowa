@@ -1,0 +1,19 @@
+{
+  "name": "chowa",
+  "displayName": "Chōwa",
+  "version": "0.4.0",
+  "description": "Spec-driven pipeline, atomic commits, PR generation, and model routing — with the engine bundled in",
+  "author": {
+    "name": "Fran",
+    "url": "https://github.com/franprince"
+  },
+  "homepage": "https://github.com/franprince/chowa",
+  "repository": "https://github.com/franprince/chowa",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "conventional-commits",
+    "model-routing",
+    "spec-driven"
+  ]
+}
