@@ -154,9 +154,9 @@ Insert after `### 7. PR Description Generation`, before `## Chōwa CLI
 Reference`:
 
 ```markdown
+<!-- chowa:delegation:start -->
 ### 8. Delegating Mechanical Sub-Tasks
 
-<!-- chowa:delegation:start -->
 Not every step of a live pipeline needs the primary session's model. A
 sub-task qualifies for delegation only if, before delegating, you can state
 exactly what the correct output looks like (or exactly what mechanical rule
@@ -221,14 +221,23 @@ this plan doesn't touch `chowa.config.ts` or `src/router/*`.
 
 ## Verification Checklist (Stage 3 exit criteria)
 
-- [ ] `bun test` — all pass (184 existing + new sync-skill cases)
-- [ ] `bun run check:imports` — clean
-- [ ] `bun run build` — clean
-- [ ] `bun run sync:skill` regenerates `.agents/skills/chowa/SKILL.md` with
-      the delegation section absent and everything else unchanged
+- [x] `bun test` — all pass (187: 184 existing + 3 new sync-skill cases)
+- [x] `bun run check:imports` — clean
+- [x] `bun run build` — clean
+- [x] `bun run sync:skill` regenerates `.agents/skills/chowa/SKILL.md` with
+      the delegation section absent and everything else unchanged (also
+      verified `--check` reports no drift). Caught and fixed a real bug in
+      the first pass: the `### 8.` heading was placed outside the marker
+      region, so it leaked into the portable copy with an empty body — the
+      marker now wraps the heading too.
 - [ ] Manual: invoke `chowa-mechanical` (self-hosted) on a trivial rename in
-      a scratch file, confirm correct behavior and Haiku model
-- [ ] Manual read-through: both `plugins/chowa/skills/chowa/SKILL.md` and
+      a scratch file, confirm correct behavior and Haiku model — **deferred**:
+      Claude Code discovers project-level agents at session start, so a file
+      created mid-session isn't available to the `Agent` tool until the next
+      session. Verified by inspection instead (frontmatter matches the
+      confirmed schema exactly). Re-run this check in a fresh session before
+      considering the subagent fully proven.
+- [x] Manual read-through: both `plugins/chowa/skills/chowa/SKILL.md` and
       `.claude/skills/chowa/SKILL.md` read sensibly with the new section in
       place; `.agents/skills/chowa/SKILL.md` reads sensibly with it absent
 
