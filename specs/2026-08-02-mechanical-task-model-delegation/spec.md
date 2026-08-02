@@ -1,7 +1,11 @@
 # Spec: Delegate mechanical sub-tasks to a cheaper model during live pipeline execution
 
-Status: **Approved** — 2026-08-02. Open questions resolved (see Resolved
-Questions below); `implementation_plan.md` drafted for Stage 2.
+Status: **Done** — 2026-08-02. Implemented on branch
+`feat/mechanical-task-model-delegation`; see `implementation_plan.md` for
+the verification results, including a marker-placement bug caught and
+fixed during Stage 3 and one deferred manual check (live subagent
+invocation needs a fresh session to pick up a project-level agent created
+mid-session).
 
 Resolutions: (1) adopt — the guidance goes into both the canonical skill and
 this repo's self-hosted skill, i.e. "for all projects" including Chōwa's own;

@@ -1,6 +1,8 @@
 # Implementation Plan: Delegate mechanical sub-tasks to a cheaper model
 
-Status: **Draft** — awaiting explicit approval before Stage 3 (code).
+Status: **Done** — 2026-08-02. All four pieces implemented and verified
+(`bun test`: 187/187, `bun run check:imports`, `bun run build`,
+`bun run scripts/sync-skill.ts --check` all clean).
 
 ## Overview
 
