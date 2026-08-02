@@ -1,6 +1,15 @@
 # Spec: Delegate mechanical sub-tasks to a cheaper model during live pipeline execution
 
-Status: **Draft**
+Status: **Draft** — open questions resolved below; awaiting explicit approval
+to move to Stage 2 (implementation plan).
+
+Resolutions: (1) adopt — the guidance goes into both the canonical skill and
+this repo's self-hosted skill, i.e. "for all projects" including Chōwa's own;
+(2) canonical **and** self-hosted, see below; (3) reuse Chōwa's existing (thin)
+precedent rather than invent new criteria — see "Mechanical criteria" below;
+(4) pin the subagent to the semantic alias for whichever provider originated
+the request (`haiku` for Claude Code), not a resolved full model ID — see
+"Model selection" below.
 
 ## Problem Statement
 
@@ -52,6 +61,64 @@ field and can be invoked mid-session via the `Agent` tool for a bounded,
 self-contained piece of work, then returns control to the primary session
 unaffected.
 
+## Mechanical criteria (resolves prior Open Question 3)
+
+Chōwa does already talk about `mechanical` as a task kind, but the existing
+definition is thin — it's never been written down as a rule, only implied by
+two things: a one-line comment in `chowa.config.ts` ("formatting, renaming,
+commit messages") and the two actual production call sites that hardcode
+`kind: 'mechanical'` — `generateCommitMessage` (`src/git/commitMessage.ts`)
+and `generatePRDescription` (`src/git/prDescription.ts`). Neither is a
+criteria list; they're just the two things someone already decided qualify.
+
+Rather than invent a new, stricter definition for this spec alone (which
+would leave two different notions of "mechanical" in the codebase), this
+spec reuses what those two examples have in common as the delegation bar:
+
+- The output has a **rigid, checkable shape** (a Conventional Commits
+  string, a templated PR description) — there's a mechanical way to tell if
+  the result is right, no subjective review needed.
+- The input is **already fully specified** — a diff cluster, a base branch
+  — nothing about the task requires the agent to *decide* what should
+  change, only to describe/format a change that's already fully determined.
+- **Renames and formatting passes** extend naturally from the same
+  principle: the change is fully determined by a mechanical rule (rename A
+  to B everywhere; apply this formatter), not a judgment call.
+
+Concretely: a sub-task qualifies for delegation only if the primary agent
+can state, before delegating, exactly what the correct output looks like
+(or exactly what rule to mechanically apply) — if any part of "what should
+this become" is still an open design question, it doesn't qualify and stays
+on the primary session's model.
+
+## Model selection (resolves prior Open Question 4)
+
+`ChowaClient.getAvailableModels()` (`src/client.ts:106-117`) — the only
+"available models" facility Chōwa has today — is a **hardcoded static
+list**, not a live query against any provider or the running environment;
+the `claude-code-bridge`'s `models` action just wraps it unchanged. So there
+is currently no way to dynamically discover, at runtime, which models a
+given provider actually offers. `resolveModelTier()` (`src/router/router.ts`)
+can map a semantic tier (`'fast'`, `'balanced'`, ...) against that list, but
+the list itself never changes without a code edit — it isn't dynamic in the
+way the question implies.
+
+For the specific case this spec needs — the `model:` frontmatter of a
+Claude Code subagent definition — there's a simpler answer that sidesteps
+Chōwa's own (static) model list entirely: Claude Code's subagent frontmatter
+already accepts the semantic alias `haiku` directly (confirmed against
+current docs), and that alias is maintained by Claude Code/Anthropic to
+always point at the current Haiku model. Pinning the subagent's frontmatter
+to the alias — not a resolved full model ID like `claude-haiku-4-5-20251001`
+— is "dynamic" in the sense that actually matters here: it stays correct as
+the underlying model changes, with no code on Chōwa's side to update.
+
+This does **not** fix Chōwa's own cross-provider `getAvailableModels()`
+being static — that's a real, separate gap (relevant to `chowa.config.ts`'s
+router, which does need to work across Gemini/Anthropic/OpenAI, where no
+shared semantic alias exists). Fixing that is out of scope here; flagged as
+a candidate follow-up spec, not bundled into this one.
+
 ## Goals
 
 - **G1.** Decide, explicitly, whether the live pipeline should delegate
@@ -85,18 +152,26 @@ unaffected.
 
 ## Affected Interfaces
 
-- Possibly new: `.claude/agents/chowa-mechanical.md` — a subagent definition
-  scoped to mechanical edits, with `model: haiku` (or equivalent alias) in
-  frontmatter and a minimal tool list (likely `Read`, `Edit`, `Bash` for
-  running verification commands — no `Agent` access, to prevent nested
-  delegation).
-- `.claude/skills/chowa/SKILL.md` — new workflow-rule subsection describing
-  when and how to delegate (or an explicit "considered and rejected"
-  note if G1 resolves the other way).
-- Open question (see below) whether the canonical, user-distributed
-  `plugins/chowa/skills/chowa/SKILL.md` (and its generated
-  `.agents/skills/chowa/SKILL.md` copy) should carry the same guidance for
-  other projects, or whether this stays self-hosted-only.
+- New: `chowa-mechanical` subagent definition, with `model: haiku` in
+  frontmatter (the semantic alias, not a pinned full model ID — see "Model
+  selection" above) and a minimal tool list (likely `Read`, `Edit`, `Bash`
+  for running verification commands — no `Agent` access, to prevent nested
+  delegation). Needed in **two places**, since "adopt for all projects"
+  covers both distribution channels and neither is generated from the
+  other:
+  - `plugins/chowa/skills/chowa/SKILL.md`'s companion agent directory (the
+    canonical, user-distributed copy — exact path TBD in the implementation
+    plan, likely `plugins/chowa/agents/chowa-mechanical.md` alongside the
+    skill it ships with).
+  - `.claude/agents/chowa-mechanical.md` — this repo's self-hosted copy,
+    hand-maintained like `.claude/skills/chowa/SKILL.md` itself (not
+    generated by `sync:skill`).
+- `.claude/skills/chowa/SKILL.md` **and** `plugins/chowa/skills/chowa/SKILL.md`
+  — both get a new workflow-rule subsection describing when and how to
+  delegate, using the criteria from "Mechanical criteria" above. The
+  canonical edit propagates to `.agents/skills/chowa/SKILL.md` via
+  `bun run sync:skill`; the self-hosted file is edited directly (it isn't
+  generated).
 
 ## Edge Cases
 
@@ -118,34 +193,36 @@ unaffected.
 
 ## Acceptance Criteria
 
-- [ ] SKILL.md contains an explicit, documented decision on G1 — not
-      silence.
-- [ ] If adopted: `.claude/agents/chowa-mechanical.md` exists, has a pinned
-      cheap-model `model:` frontmatter value, and a tool list that excludes
-      `Agent` (no nested delegation).
-- [ ] If adopted: the new SKILL.md subsection states concrete delegation
-      criteria (task-kind + rough scope threshold) that a reader could apply
-      consistently without further clarification.
+- [ ] `chowa-mechanical` subagent definition exists in both
+      `.claude/agents/` (self-hosted) and the canonical plugin's agent
+      directory, each with `model: haiku` in frontmatter and a tool list
+      that excludes `Agent` (no nested delegation).
+- [ ] Both `.claude/skills/chowa/SKILL.md` and
+      `plugins/chowa/skills/chowa/SKILL.md` document the delegation rule
+      using the criteria from "Mechanical criteria" above (rigid/checkable
+      output + fully-specified input), consistently worded.
+- [ ] `bun run sync:skill` regenerates `.agents/skills/chowa/SKILL.md` from
+      the updated canonical file with no manual drift.
 - [ ] No changes to `src/router/*`, `chowa.config.ts`, or any `.ts` source
       file under `src/` — this track is documentation/agent-definition only.
 - [ ] `bun test`, `bun run check:imports`, `bun run build` remain clean
       (expected to be a no-op check, since no TypeScript changes).
 
-## Open Questions for Approval
+## Resolved Questions
 
-1. Do we adopt delegation at all (G1), or is the honest conclusion that
-   `chowa.config.ts`'s existing router already covers the cases that
-   matter — Chōwa's own generated commit messages and PR descriptions — and
-   the live agent's own inline edits aren't worth this additional
-   complexity?
-2. If adopted, does the delegation guidance belong only in the self-hosted
-   `.claude/skills/chowa/SKILL.md`, or also in the canonical
-   `plugins/chowa/skills/chowa/SKILL.md` so other projects using the
-   distributed Chōwa skill get the same behavior?
-3. What's the concrete "mechanical enough to delegate" bar — a file/line
-   count threshold, a specific verb list (rename, reformat, boilerplate
-   scaffold), explicit exclusions (test assertions, public API signatures,
-   anything security-sensitive), or some combination?
-4. Which cheap model alias should the subagent pin to — `haiku` outright, or
-   should it mirror `chowa.config.ts`'s own choice of fast/cheap target so
-   the two systems don't disagree about what "cheap" means?
+1. **Adopt delegation?** Yes — adopted for all projects, including Chōwa's
+   own self-hosted development.
+2. **Which skill file(s)?** Both: the canonical
+   `plugins/chowa/skills/chowa/SKILL.md` (so every project using the
+   distributed skill gets it, propagating to `.agents/skills/chowa/SKILL.md`
+   via `sync:skill`) and the self-hosted `.claude/skills/chowa/SKILL.md`
+   (edited directly, since it isn't generated).
+3. **Delegation bar?** Reuse Chōwa's existing (if thin) precedent rather
+   than invent new criteria — see "Mechanical criteria" above: rigid/checkable
+   output + fully-specified input, covering renames, formatting, boilerplate,
+   and the two production examples (commit-message and PR-description
+   generation).
+4. **Which model?** The semantic alias for the active provider (`haiku` for
+   Claude Code), not a resolved full model ID and not routed through
+   Chōwa's own (currently static, non-dynamic) `getAvailableModels()` — see
+   "Model selection" above.
