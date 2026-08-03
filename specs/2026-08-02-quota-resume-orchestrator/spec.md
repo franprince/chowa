@@ -52,6 +52,21 @@ explicitly **does not** touch or supersede the rest of `feat/quota-limit-detecti
 scope (REPL UX, streaming, Antigravity bridging) — that branch is left alone
 for its author to reconcile separately.
 
+**Scope, clarified after drafting:** this is not just "resume the leftover
+tasks of an already-written plan." Chōwa itself becomes the driver of its own
+spec → plan → execute pipeline: it hands a raw instruction to an agent
+session to assess complexity and draft `spec.md`, pauses for the same human
+approval gate the pipeline already mandates, hands the approved spec to an
+agent to draft `implementation_plan.md`, pauses again for approval, then
+breaks the approved plan's tasks apart and dispatches each to an agent
+session — tracking every dispatch (this stage included) with the same
+completion/quota-correlation/resume mechanism throughout, not only during
+the final execute stage. In other words: everything that currently requires
+a human to sit inside a live Claude Code chat driving each pipeline stage by
+hand (as happened for every spec in this repo, including this one) becomes
+something Chōwa can drive itself, with the human still gating the two
+approval points the pipeline has always required.
+
 ## Hard Constraint: Subscription Only
 
 Non-negotiable, stated directly by the user: this must drive the `claude` /
@@ -110,28 +125,62 @@ successfully end-to-end during this session.
 
 ## Goals
 
-- **G1.** A task queue: an ordered list of discrete units of work, each with
-  enough persisted state (which spec/plan step, expected next action) that a
-  resumed session can be told concretely what to continue — not a bare
-  "continue" prompt.
-- **G2.** Dispatch each task via `claude -p --resume <session-id>
-  --permission-mode dontAsk <task-specific prompt>` (or a fresh session per
-  task, if that turns out to be the right shape — see Open Questions).
-- **G3.** After each dispatch, read the terminal `result` message's
-  `is_error` field to determine whether the task actually completed. Do not
-  infer completion from prose.
-- **G4.** On `is_error: true`, immediately probe quota via the zero-token
+**Pipeline stages — Chōwa drives, human still gates:**
+
+- **G1.** Accept a raw instruction from the user and dispatch it to an agent
+  session to assess complexity and draft `spec.md`, following this repo's
+  existing spec conventions (`specs/<date>-<slug>/`, `specs/INDEX.md` row).
+- **G2.** Pause after the spec is drafted and wait for explicit human
+  approval — the same Stage 1 → Stage 2 gate the pipeline already mandates.
+  Does not proceed to planning without it (see Open Questions for exactly how
+  the human signals approval to a process that isn't a live chat turn).
+- **G3.** Once approved, dispatch to an agent to draft
+  `implementation_plan.md` against the approved spec.
+- **G4.** Pause again for explicit human approval — the Stage 2 → Stage 3
+  gate — before any task dispatch begins.
+- **G5.** Once approved, break the plan's tasks (its acceptance-criteria
+  checklist / discrete units of work) into a queue, each carrying enough
+  persisted state (which plan step, expected next action) that a resumed
+  session can be told concretely what to continue — not a bare "continue"
+  prompt (verified necessary — see "Verified via POC").
+
+**Task dispatch and tracking — applies at every stage above, not just G5:**
+
+- **G6.** Dispatch each unit of work (spec drafting, plan drafting, or an
+  individual task) via `claude -p --resume <session-id> --permission-mode
+  dontAsk <stage-or-task-specific prompt>` (or a fresh session per dispatch,
+  if that turns out to be the right shape — see Open Questions).
+- **G7.** Task → model/agent assignment reuses Chōwa's existing router
+  (`chowa.config.ts`, `resolve()` in `src/router/`) rather than inventing a
+  new decision mechanism — the same `kind`/`estimatedComplexity` profile the
+  router already uses for `mechanical`/`architecture`/`security`/etc.
+  determines which model handles a given task.
+- **G8.** After each dispatch, read the terminal `result` message's
+  `is_error` field to determine whether it actually completed. Do not infer
+  completion from prose.
+- **G9.** On `is_error: true`, immediately probe quota via the zero-token
   `get_usage` control request. Only treat the failure as quota-caused if the
   probe confirms a window is exhausted at that moment — **correlate two
   independently-reliable structured signals**, never infer "this was a quota
-  failure" from the task's own error text alone.
-- **G5.** If quota-caused: schedule an automatic resume at `resets_at` (+ a
-  safety margin), re-attempting the *same* task with concrete state
+  failure" from the dispatch's own error text alone.
+- **G10.** If quota-caused: schedule an automatic resume at `resets_at` (+ a
+  safety margin), re-attempting the *same* dispatch with concrete state
   re-injected into the resume prompt.
-- **G6.** If not quota-caused: surface the failure as a normal failure. Do
+- **G11.** If not quota-caused: surface the failure as a normal failure. Do
   not retry indefinitely on the theory that it might be quota-related.
-- **G7.** Subscription-only, per the Hard Constraint above — enforced as a
+- **G12.** Default dispatch is sequential — one unit of work at a time.
+  Parallel dispatch across independent tasks is a supported capability, not
+  the default: a single subscription's quota is one shared pool across
+  everything running against it, so parallelism doesn't buy more headroom
+  and needs to be opted into deliberately, not assumed safe by default.
+- **G13.** Subscription-only, per the Hard Constraint above — enforced as a
   design invariant, not just documented as intent.
+- **G14.** Runs as a long-lived daemon, not a one-shot invocation — the user
+  can continually interact with it (new instructions, approvals, status
+  checks) across its whole lifetime, and it proactively surfaces state
+  transitions (stage complete and awaiting approval, quota-blocked until a
+  specific time, resumed, task failed) rather than requiring the user to
+  poll for status.
 
 ## Non-Goals
 
@@ -144,27 +193,42 @@ successfully end-to-end during this session.
 - Not resurrecting or fixing `AgentSubprocessTransport` /
   `src/transport/subprocess.ts` — this is a clean, separate mechanism, not a
   patch to that file.
-- Not a generic retry-on-any-failure system — G6 is explicit that non-quota
+- Not a generic retry-on-any-failure system — G11 is explicit that non-quota
   failures are surfaced, not retried.
 - Not guaranteeing the experimental `get_usage` shape stays stable —
   acceptance criteria require failing loudly if it changes, not silently
   degrading.
+- Not building a scheduler optimized for parallel throughput — G12 says
+  parallel dispatch must be *possible*, not that v1 needs sophisticated
+  concurrency management. A basic opt-in is sufficient.
+- Not a multi-repo/multi-project orchestration model — scoped to one working
+  directory at a time, matching how the rest of Chōwa already works.
 
 ## Affected Interfaces
 
 To be finalized in the implementation plan once the Open Questions below are
-resolved. Likely shape, based on the POC:
+resolved. Likely shape, based on the POC and G1–G13:
 
 - A quota-probe module (POC: `probe.ts`) — `probeUsage()`, structured
   `UsageSnapshot`, defensive parsing that throws on an unrecognized shape.
-- A resume/dispatch module (POC: `supervisor.ts`) — spawns `claude -p
-  --resume <id> --permission-mode dontAsk`, reads `stream-json` output,
-  extracts the terminal `result` message.
-- A task-queue layer (not yet POC'd) — the part Goals G1/G3/G6 depend on;
-  shape depends on Open Question 1 below.
-- Persistence for the queue itself, so the orchestrator process can be
-  killed/restarted without losing track of pending/in-flight tasks (depends
-  on Open Question 2).
+- A dispatch module (POC: `supervisor.ts`) — spawns `claude -p --resume <id>
+  --permission-mode dontAsk`, reads `stream-json` output, extracts the
+  terminal `result` message. Used for spec dispatch, plan dispatch, and each
+  individual task dispatch alike (G6) — one mechanism, not three.
+- A pipeline-stage state machine (not yet POC'd) — tracks where a given
+  instruction currently sits: `drafting-spec → awaiting-spec-approval →
+  drafting-plan → awaiting-plan-approval → executing-tasks → done`, per G1–G5.
+- A task-queue layer (not yet POC'd) — the part G5/G8/G11 depend on, sourced
+  from the approved plan's checklist.
+- Router integration (G7) — calls Chōwa's existing `resolve()` /
+  `chowa.config.ts` to pick each dispatch's target model; no new
+  decision logic duplicated here.
+- Persistence for pipeline + queue state, so the daemon can be
+  killed/restarted without losing track of which stage an instruction is in,
+  or which tasks are pending/in-flight.
+- A daemon process with a start/stop/attach lifecycle (G14) — exact shape
+  (socket/IPC-backed CLI attach, desktop notifications, or something else)
+  depends on Open Question 1.
 
 ## Edge Cases
 
@@ -177,28 +241,53 @@ resolved. Likely shape, based on the POC:
   quota-wait logic (G6 already says non-quota failures surface rather than
   retry, but a task could plausibly alternate between a real bug and
   incidental quota exhaustion — cap total attempts regardless of cause).
-- Orchestrator process itself is killed/restarted (machine reboot, crash)
-  while a task is queued or a resume is scheduled — depends on Open Question
-  2 (daemon vs. invoked run) for how state survives this.
+- Daemon process itself is killed/restarted (machine reboot, crash) while a
+  task is queued or a resume is scheduled — persisted pipeline/queue state
+  (Affected Interfaces) must let it pick back up, not lose track silently.
+- A client is attached (per Open Question 1's working assumption) when the
+  daemon restarts — the attach channel must reconnect or clearly report
+  "daemon restarted, reattaching" rather than silently going stale, since
+  G14 promises continual interaction and proactive updates, not just
+  eventual consistency after the fact.
 - `get_usage`'s experimental shape changes in a future Claude Code release —
   probe must fail loudly (as the POC already does), not silently report
   "quota fine" and let the caller misattribute a real failure as transient.
-- Multiple tasks queued where an earlier one is quota-blocked — does a later,
-  independent task proceed in the meantime, or does the whole queue serialize
-  behind the blocked one? (Depends on Open Question 1/4.)
+- Multiple tasks queued where an earlier one is quota-blocked — per G12,
+  serial is the default, so later tasks wait too unless parallel dispatch was
+  explicitly opted into for that run.
+- **How does a human actually approve a stage** (G2/G4) when the thing
+  waiting isn't a live chat turn but a background/dispatched process? Not yet
+  resolved — see Open Questions. Whatever the mechanism, it must be
+  distinguishable from "the process is still working" (a stuck approval wait
+  and a stuck task must not look identical to the human checking status).
+- A dispatched spec/plan-drafting stage itself gets quota-blocked mid-draft —
+  the same G9/G10 correlation-and-resume logic must apply here too, not just
+  to task-stage dispatches (this is why G6/G7/G8/G9/G10/G11 are written as
+  "each dispatch," not "each task").
 
 ## Acceptance Criteria
 
-- [ ] A queued task that completes successfully (`is_error: false`) is marked
-      done and the queue advances — no unnecessary quota probe fired on the
-      success path.
-- [ ] A queued task that fails with `is_error: true` triggers an immediate
+- [ ] A raw instruction dispatched for spec drafting produces a `spec.md`
+      under `specs/<date>-<slug>/` following this repo's existing convention,
+      with an `INDEX.md` row.
+- [ ] The pipeline halts after spec drafting and does not dispatch plan
+      drafting until an explicit approval signal is observed.
+- [ ] The same halt-and-wait applies between plan drafting and task
+      execution.
+- [ ] Each task dispatch's target model is resolved via Chōwa's existing
+      `resolve()`/router — no parallel/duplicate routing logic introduced.
+- [ ] A dispatch (spec, plan, or task) that completes successfully
+      (`is_error: false`) is marked done and the pipeline/queue advances — no
+      unnecessary quota probe fired on the success path.
+- [ ] A dispatch that fails with `is_error: true` triggers an immediate
       `get_usage` probe.
-- [ ] If that probe shows a window at/above the blocked threshold, the task
-      is rescheduled for `resets_at` (+ safety margin) with concrete
+- [ ] If that probe shows a window at/above the blocked threshold, the
+      dispatch is rescheduled for `resets_at` (+ safety margin) with concrete
       resume-state in the prompt — not a bare "continue".
-- [ ] If that probe shows quota is clear, the task is surfaced as a genuine
-      failure, not silently retried.
+- [ ] If that probe shows quota is clear, the dispatch is surfaced as a
+      genuine failure, not silently retried.
+- [ ] This applies uniformly to spec-drafting and plan-drafting dispatches,
+      not only task dispatches.
 - [ ] No code path constructs `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or
       `FetchTransport` — grep-able as a CI check, not just a code-review
       note.
@@ -208,31 +297,55 @@ resolved. Likely shape, based on the POC:
       response shape rather than defaulting to "quota available."
 - [ ] A total-attempts cap exists independent of the quota-wait logic (Edge
       Cases).
+- [ ] Parallel dispatch is reachable via explicit opt-in only; the default
+      path for an unmodified invocation is sequential.
 - [ ] All new code has tests; `bun test`, `bun run check:imports`, `bun run
       build` clean.
 
+## Resolved Questions
+
+1. **Where do tasks come from?** Resolved: Chōwa drives the full pipeline
+   itself — spec drafting → plan drafting → task execution — dispatching
+   each stage to an agent session (G1–G5), rather than consuming an
+   already-written plan handed to it externally.
+2. **Task independence / serialization.** Resolved: sequential by default
+   (G12). Parallel dispatch is a supported capability, not the default,
+   since a single subscription's quota is one shared pool regardless of how
+   many sessions draw on it concurrently.
+3. **Daemon or invoked-once?** Resolved: a long-lived background process
+   ("daemon"), not something invoked once per instruction that exits when
+   done. Two explicit requirements that drove this: the user needs to be
+   able to **continually interact with it** (not just fire-and-forget an
+   instruction), and it must **proactively keep the user updated** — state
+   changes get pushed out, not left for the user to poll for. This also
+   settles most of former Open Question 1 (how approval gets signaled): the
+   same persistent channel the daemon uses to interact and push updates is
+   the natural place approvals flow through too, rather than a separate
+   file/commit-watching mechanism.
+
 ## Open Questions for Approval
 
-1. **Where do tasks come from?** Should the queue be sourced from Chōwa's
-   own `implementation_plan.md` checklists (each unchecked acceptance item
-   becomes a task, naturally giving "concrete state" for free — G1/G5) or is
-   this a more generic, standalone task list unrelated to the spec/plan
-   pipeline? This materially changes both the task-state shape and how
-   "resume with concrete state" gets implemented.
-2. **Daemon or invoked-once?** Does the orchestrator run as a long-lived
-   background process the user starts once (needs its own lifecycle: start,
-   survive logout, logging, restart-safety), or is it invoked and runs until
-   the queue empties, then exits (simpler, but doesn't survive the user's
-   machine going to sleep/rebooting across a multi-hour quota wait)?
-3. **Where does this live?** A new module inside Chōwa's existing `src/`
+1. **What is the actual interaction/update channel?** "Continually interact"
+   and "keep the user updated all the time" are clear behavioral
+   requirements, but not yet a transport. Working assumption for the
+   implementation plan, stated here so it can be corrected rather than
+   silently baked in: a persistent process the user attaches to via a CLI
+   command (e.g. `chowa daemon attach`) showing a running status/log and
+   accepting input (approvals, new instructions, `--simulate-blocked`-style
+   inspection), plus OS-level desktop notifications for major state
+   transitions (awaiting approval, quota-blocked until HH:MM, task failed)
+   so the user doesn't have to keep a terminal in view to be "kept updated."
+   If a different channel is wanted (a TUI dashboard, a chat integration, a
+   log file plus a separate `chowa status` poll command), say so before this
+   moves to Stage 2 — the daemon's process model (socket/IPC vs. plain
+   stdout, whether it depends on any external service) hinges on this.
+2. **Where does this live?** A new module inside Chōwa's existing `src/`
    (alongside the router/client it already has), or a separate,
    more standalone script/tool that Chōwa ships but doesn't deeply integrate
    into the existing provider-routing architecture? The POC scripts are
    currently standalone — deciding this affects whether they get adapted in
-   place or rewritten against Chōwa's existing module boundaries.
-4. **Task independence / serialization.** If task queues are per-project or
-   per-conversation, should independent tasks proceed while one is
-   quota-blocked, or does everything serialize behind the block? (Relates to
-   Edge Cases.) Given a single subscription's quota is shared across
-   everything running against it, parallel dispatch may not even help — but
-   worth confirming rather than assuming serial is correct by default.
+   place or rewritten against Chōwa's existing module boundaries. A daemon
+   with its own process lifecycle (start/stop/attach) is a different shape
+   than anything Chōwa currently ships (a CLI you invoke once and it exits,
+   or an interactive REPL) — worth confirming this is meant to live in the
+   same package rather than as a separate tool Chōwa ships alongside itself.
