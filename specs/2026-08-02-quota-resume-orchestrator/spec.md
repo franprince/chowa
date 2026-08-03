@@ -1,6 +1,7 @@
 # Spec: Quota-aware task orchestrator for Claude Code / Antigravity sessions
 
-Status: **Draft**
+Status: **Approved** — 2026-08-03. All open questions resolved; see
+Resolved Questions below.
 
 ## Problem Statement
 
@@ -323,29 +324,21 @@ resolved. Likely shape, based on the POC and G1–G13:
    the natural place approvals flow through too, rather than a separate
    file/commit-watching mechanism.
 
-## Open Questions for Approval
+4. **Interaction/update channel.** Resolved: the proposed default — a
+   persistent process the user attaches to via a CLI command (e.g. `chowa
+   daemon attach`) showing a running status/log and accepting input
+   (approvals, new instructions), plus OS-level desktop notifications for
+   major state transitions (awaiting approval, quota-blocked until HH:MM,
+   task failed).
+5. **Where this lives.** Resolved: a separate product inside this repo, not
+   folded into `src/`'s existing module tree — for now, with the explicit
+   understanding this may be extracted further (its own package, its own
+   repo) later. Confirmed against `scripts/check-imports.ts`: the boundary
+   check only scans inside `src/{core,adapters,router,git}` for imports from
+   `src/integrations/` — a new top-level directory sits entirely outside
+   what it enforces, so this placement has no friction with existing
+   tooling. No workspaces/monorepo tooling exists in `package.json` yet;
+   the implementation plan decides whether this needs one or can stay a
+   plain sibling directory with its own `package.json`.
 
-1. **What is the actual interaction/update channel?** "Continually interact"
-   and "keep the user updated all the time" are clear behavioral
-   requirements, but not yet a transport. Working assumption for the
-   implementation plan, stated here so it can be corrected rather than
-   silently baked in: a persistent process the user attaches to via a CLI
-   command (e.g. `chowa daemon attach`) showing a running status/log and
-   accepting input (approvals, new instructions, `--simulate-blocked`-style
-   inspection), plus OS-level desktop notifications for major state
-   transitions (awaiting approval, quota-blocked until HH:MM, task failed)
-   so the user doesn't have to keep a terminal in view to be "kept updated."
-   If a different channel is wanted (a TUI dashboard, a chat integration, a
-   log file plus a separate `chowa status` poll command), say so before this
-   moves to Stage 2 — the daemon's process model (socket/IPC vs. plain
-   stdout, whether it depends on any external service) hinges on this.
-2. **Where does this live?** A new module inside Chōwa's existing `src/`
-   (alongside the router/client it already has), or a separate,
-   more standalone script/tool that Chōwa ships but doesn't deeply integrate
-   into the existing provider-routing architecture? The POC scripts are
-   currently standalone — deciding this affects whether they get adapted in
-   place or rewritten against Chōwa's existing module boundaries. A daemon
-   with its own process lifecycle (start/stop/attach) is a different shape
-   than anything Chōwa currently ships (a CLI you invoke once and it exits,
-   or an interactive REPL) — worth confirming this is meant to live in the
-   same package rather than as a separate tool Chōwa ships alongside itself.
+No open questions remain.
