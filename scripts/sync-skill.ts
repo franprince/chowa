@@ -88,7 +88,13 @@ const REGION_SWAPS: readonly RegionSwap[] = [
  * ship Claude-Code-only instructions to a harness that can't act on them.
  */
 export function toPortable(canonical: string): string {
-  return REGION_SWAPS.reduce((text, swap) => applySwap(text, swap), canonical);
+  const swapped = REGION_SWAPS.reduce((text, swap) => applySwap(text, swap), canonical);
+  // An empty-replacement swap leaves the blank line on each side of the
+  // stripped markers intact; two such regions back-to-back (delegation
+  // immediately followed by autoresume) stack those into a visible run of
+  // blank lines. Collapsing 3+ consecutive newlines to a single blank line
+  // is safe here — nothing in this file relies on more than one.
+  return swapped.replace(/\n{3,}/g, '\n\n');
 }
 
 function applySwap(text: string, swap: RegionSwap): string {

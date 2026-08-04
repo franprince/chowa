@@ -75,6 +75,44 @@ describe('sync-skill', () => {
       expect(portable).toContain('trailing prose');
     });
 
+    it('collapses the blank-line runoff left by two adjacent stripped regions', () => {
+      // delegation and autoresume sit back-to-back in the canonical file,
+      // each surrounded by a blank line; stripping both in sequence used
+      // to leave 4 consecutive blank lines behind (one per side of each
+      // region) rather than the single blank line a normal section break
+      // gets.
+      const canonical = [
+        '<!-- chowa:invocation:start -->',
+        'INVOCATION CONTENT',
+        '<!-- chowa:invocation:end -->',
+        '',
+        '### 7. PR Description Generation',
+        '',
+        '```bash',
+        'chowa pr --base <branch>',
+        '```',
+        '',
+        '<!-- chowa:delegation:start -->',
+        'DELEGATION CONTENT',
+        '<!-- chowa:delegation:end -->',
+        '',
+        '<!-- chowa:autoresume:start -->',
+        'AUTORESUME CONTENT',
+        '<!-- chowa:autoresume:end -->',
+        '',
+        '## Chōwa CLI Reference',
+      ].join('\n');
+
+      const portable = toPortable(canonical);
+
+      expect(portable).not.toMatch(/\n{3,}/);
+      expect(portable.endsWith(
+        ['### 7. PR Description Generation', '', '```bash', 'chowa pr --base <branch>', '```', '', '## Chōwa CLI Reference'].join(
+          '\n',
+        ),
+      )).toBe(true);
+    });
+
     it('leaves everything outside the markers byte-identical', () => {
       const canonical = readFileSync(CANONICAL_SKILL, 'utf-8');
       const start = canonical.indexOf('<!-- chowa:invocation:start -->');
