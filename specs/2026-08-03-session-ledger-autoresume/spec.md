@@ -222,9 +222,13 @@ Confirmed directly against `claude` 2.1.220 and this host, not assumed:
   unstamped, and is therefore never swept. This is the intended failure
   direction: the cost is a missed resume the human can trigger manually, not
   an unwanted one.
-- **The cache is stale and reports a reset already in the past.** Must be
-  treated as "unknown", triggering the probe fallback, not as "quota is
-  available right now".
+- **The cache is stale and reports a reset already in the past.** *(Moot as
+  shipped — `~/.claude.json`'s cache is unused; see the superseded
+  acceptance criterion above.)* The equivalent risk with the shipped
+  design — a stamped `resetsAt` that turns out to be wrong by the time the
+  sweep fires — is bounded by `resumeAttempts`/`MAX_RESUME_ATTEMPTS`: a
+  too-early resume just hits the wall again and re-stamps a corrected
+  value on its next `StopFailure`.
 - **`tmux` session name collision** across concurrent sweeps — names must
   carry a unique suffix, not just the task or agent name.
 - **Repo moved or branch deleted** between stamping and sweeping. The entry
@@ -247,8 +251,15 @@ Confirmed directly against `claude` 2.1.220 and this host, not assumed:
       even when it is inside the window and stamped `quota`.
 - [ ] An entry blocked by `seven_day` is not reopened by a `five_hour`
       sweep.
-- [ ] Reset-time resolution prefers the cache, falls back to the probe, and
-      fails loudly (skipping the sweep) on an unrecognized shape.
+- [x] ~~Reset-time resolution prefers the cache, falls back to the probe,
+      and fails loudly (skipping the sweep) on an unrecognized shape.~~
+      **Superseded during Phase C** (see implementation_plan.md's Phase C
+      note): `eligibleForSweep` compares each entry's own `resetsAt`,
+      captured by a direct `get_usage` probe *at stamp time* rather than a
+      cache re-read at sweep time — a stronger guarantee than G5's
+      original cache-then-probe sketch, since it was never a passively-
+      aging value to begin with. No separate resolution step exists;
+      `~/.claude.json`'s cache is unused by this feature.
 - [ ] A sweep firing twice in a row opens exactly one `tmux` session per
       eligible entry.
 - [ ] The reopened session receives the recorded task description, not a
