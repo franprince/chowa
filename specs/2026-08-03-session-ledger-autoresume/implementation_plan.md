@@ -1,8 +1,12 @@
 # Implementation Plan: Session-ledger auto-resume
 
-Status: **In Progress** — Phase A merged (PR #21), Phase B merged, Phase C
-in progress. See the Phase C note below on a design refinement made during
-Phase A that changes this section from what was originally sketched here.
+Status: **In Progress** — Phases A–D implemented on `feat/session-ledger-hooks`
+(Phase A already merged via PR #21; B/C/D pending PR). Not yet "Done": the
+two real-world-only checklist items below (a genuine quota cutoff
+confirming `StopFailure` fires, and installing the systemd timer on an
+actual machine) are still open. See the Phase C note below on a design
+refinement made during Phase A that changes that section from what was
+originally sketched here.
 
 ## Overview
 
@@ -289,21 +293,28 @@ script, consistent with how every other Chōwa capability is exposed.
 
 ## Verification Checklist (Stage 3 exit criteria, per phase)
 
-- [ ] Phase A: `bun test` covers the weekly-vs-session eligibility case
+- [x] Phase A: `bun test` covers the weekly-vs-session eligibility case
       explicitly — this is the one bug that would silently misfire in
       production if untested.
-- [ ] Phase B: hook scripts never throw uncaught; a forced-failure test
+- [x] Phase B: hook scripts never throw uncaught; a forced-failure test
       (fixture that makes the ledger write fail) confirms the session-start
       path still completes normally.
-- [ ] Phase B: `bun run check:skill` clean — `autoresume` region absent
+- [x] Phase B: `bun run check:skill` clean — `autoresume` region absent
       from `.agents/skills/chowa/SKILL.md`.
 - [ ] Phase C: manual confirmation the systemd timer installs and appears
-      in `systemctl --user list-timers` with `Persistent=true` set.
-- [ ] All phases: no code path passes `--dangerously-skip-permissions` or
-      `--permission-mode` (grep-able); no code path constructs
-      `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` (grep-able).
-- [ ] All phases: root `bun test`, `bun run check:imports`, `bun run build`
-      remain clean.
+      in `systemctl --user list-timers` with `Persistent=true` set. Not run
+      against a real user session yet — `chowa ledger install` genuinely
+      enables a recurring background job, so it's left for the user to run
+      deliberately rather than fired during automated verification.
+- [x] All phases: no code path passes `--dangerously-skip-permissions` or
+      `--permission-mode` (grep-able — the only match is `sweep.ts`'s own
+      doc comment explaining they're deliberately *not* used); no code
+      path constructs `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` (grep-able, zero
+      matches).
+- [x] All phases: root `bun test`, `bun run check:imports`, `bun run build`
+      remain clean (one pre-existing, unrelated failure in
+      `router.test.ts` — a `require()` in an ESM test file predating this
+      feature — left untouched).
 - [ ] **Open Question 1's real-world verification**: the first genuine
       quota cutoff encountered after Phase B ships is used to confirm
       `StopFailure` actually stamps the ledger — noted here so it isn't

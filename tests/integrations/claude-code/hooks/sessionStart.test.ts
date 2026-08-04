@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { simpleGit } from 'simple-git';
@@ -69,5 +69,22 @@ describe('sessionStart hook — stdin protocol', () => {
 
     const ledger = readLedger({ path: join(fakeHome, '.chowa', 'sessions.json') });
     expect(ledger.entries[`${repo}#feat/x`]?.sessionId).toBe('sess-stdin');
+  });
+
+  it('exits cleanly and logs to stderr when the ledger write fails, never blocking session start', async () => {
+    const repo = await makeRepo();
+    const fakeHome = mkdtempSync(join(tmpdir(), 'chowa-session-start-forcedfail-'));
+    // A plain file where the ledger's directory should be forces
+    // writeLedger's mkdirSync(..., { recursive: true }) to throw.
+    writeFileSync(join(fakeHome, '.chowa'), 'not a directory', 'utf-8');
+
+    const result = spawnSync('bun', ['run', HOOK_ENTRY], {
+      input: JSON.stringify({ session_id: 'sess-fail', cwd: repo }),
+      encoding: 'utf-8',
+      env: { ...process.env, HOME: fakeHome },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain('chowa sessionStart hook failed');
   });
 });
