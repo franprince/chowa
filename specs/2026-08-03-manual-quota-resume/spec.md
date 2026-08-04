@@ -46,20 +46,38 @@ autonomous parts.
 - `at`, `atd` (active, enabled, running as a systemd service — survives
   reboot), `systemd-run`, and `tmux` are all present.
 - Session IDs are literally the `.jsonl` filenames under
-  `~/.claude/projects/<slugified-cwd>/` — one file per session. The most
-  recently modified one in the current project's directory is the current
-  session. (Confirmed directly: this very session's own ID is visible
-  throughout its own file paths tonight.)
+  `~/.claude/projects/<slugified-cwd>/` — one file per session. (Confirmed
+  directly: this very session's own ID is visible throughout its own file
+  paths tonight.)
+- **`SessionStart` is a real, actionable Claude Code hook — not read-only
+  like `StopFailure`.** Confirmed against the shipped binary's own schema:
+  its structured output can set `additionalContext`, `sessionTitle`,
+  `watchPaths`, etc., and its command runs with full shell execution
+  regardless. More importantly: **every hook payload — `SessionStart`
+  included — receives `session_id`, `transcript_path`, and `cwd` directly as
+  structured JSON on stdin.** No mtime-based guessing is needed to know a
+  session's own ID; it's handed to the hook outright, at the moment the
+  session starts.
 
 ## Goals
 
 - **G1.** `chowa resume <agent> [sessionId] [--message "..."] (in <duration> | at <time>)`
   — schedules a one-time future resume of a `claude` (or, once/if a safe
   non-bypass headless mode exists for it, `agy`) session.
-- **G2.** `sessionId` is optional — when omitted, defaults to the most
-  recently modified session file for the current project directory (Verified
-  finding above), so the common case ("resume *this* session") doesn't
-  require the user to go find and paste a UUID.
+- **G2.** `sessionId` is optional. Primary resolution: a `SessionStart` hook
+  (shipped alongside Chōwa's existing hooks, same distribution mechanism as
+  the push-protection hook) captures `session_id` directly from its own
+  stdin payload — no guessing — and persists a `task → sessionId` mapping
+  the moment the session begins, keyed by the current git branch (Chōwa's
+  existing convention: one task/feature = one branch) at that `cwd`. `chowa
+  resume` then looks this up by branch name — exact, no ambiguity, no
+  race window, because the mapping was written by the session itself,
+  immediately, not reconstructed later from file-modification times.
+  **Fallback** for sessions predating the hook (or where it isn't
+  installed): most-recently-modified `.jsonl` under the current project's
+  `~/.claude/projects/<slug>/` directory — same heuristic as originally
+  proposed, explicitly lower-confidence, and only used when no hook-recorded
+  mapping exists for the current branch.
 - **G3.** `--message` is optional prose the user supplies now, while they
   have context, sent into the resumed session once it reopens. Omitting it
   just reopens the session without auto-sending anything — still useful
@@ -104,12 +122,24 @@ autonomous parts.
 
 ## Affected Interfaces
 
-- New CLI command: `chowa resume <agent> [sessionId] [--message <text>]
-  (in <duration> | at <time> | --auto)`.
+- New CLI command: `chowa resume [agent] [sessionId] [--message <text>]
+  (in <duration> | at <time> | --auto)`. `sessionId` stays a positional
+  override; the common path is `chowa resume --message "..." in 5h`, letting
+  branch-based lookup (G2) resolve everything else.
+- A `SessionStart` hook, distributed the same way Chōwa's existing
+  push-protection hook is (`plugins/chowa/hooks/hooks.json` — same
+  mechanism, new entry). Reads its own `session_id`/`cwd` from stdin, reads
+  the current git branch at that `cwd`, and appends/updates a mapping in a
+  local, gitignored record.
+- Persistence for that mapping — a small JSON file (e.g.
+  `~/.chowa/sessions.json`, keyed by absolute repo path + branch name; not
+  per-project inside the repo itself, so it isn't accidentally committed and
+  survives the repo being re-cloned).
 - New module (location TBD in implementation plan — likely `src/cli.ts`
   addition + a small new file, this is far too small to warrant its own
   top-level package the way the orchestrator does) that:
-  - Resolves `sessionId` (explicit arg, or most-recent-`.jsonl` lookup).
+  - Resolves `sessionId`: explicit arg → hook-recorded mapping for the
+    current branch → most-recent-`.jsonl` fallback, in that order.
   - Builds the `tmux new-session -d ...` command line.
   - Builds the `at`/`systemd-run` invocation that runs that command line at
     the requested time.
@@ -124,13 +154,22 @@ autonomous parts.
   running again (standard `at` behavior); not instant-if-missed, but not
   silently dropped either. Worth confirming this behavior explicitly rather
   than assuming.
-- `sessionId` auto-detection (G2) picks the wrong session if multiple Claude
-  Code sessions are active in the same project directory concurrently — the
-  "most recently modified" heuristic could be wrong if another session
-  writes to its own file after the intended one but before the scheduled
-  command reads the directory. Explicit `sessionId` avoids this; document
-  the ambiguity rather than silently trusting the heuristic when precision
-  matters.
+- **Solved, not just mitigated, for hook-tracked sessions**: since the
+  `SessionStart` hook records `session_id` the moment a session begins (not
+  reconstructed later from file timestamps), there's no race window —
+  concurrent sessions on different branches each get their own correct
+  mapping. The ambiguity risk is real only for the **fallback** path
+  (sessions that started before the hook existed, or in a repo where it
+  isn't installed): "most recently modified `.jsonl`" could pick the wrong
+  session if multiple Claude Code sessions are active in the same project
+  directory concurrently. Explicit `sessionId` always avoids this
+  regardless of which resolution path would otherwise apply.
+- Two sessions on the *same* branch, both hook-tracked — the mapping is
+  keyed by branch, so the second SessionStart overwrites the first's
+  recorded `session_id`. Acceptable for v1 (branch-per-task is the existing
+  convention, so this implies genuinely working on two things under one
+  branch name, which is already an edge case) but worth stating plainly
+  rather than leaving as a silent last-write-wins surprise.
 - `tmux` session name collision if `chowa resume` is invoked twice for
   related work — session names must be unique (e.g. suffix with a short
   random id or timestamp, not just the agent name).
@@ -143,10 +182,18 @@ autonomous parts.
 
 ## Acceptance Criteria
 
-- [ ] `chowa resume claude --message "..." in 5h` schedules a detached tmux
-      session via `at`, targeting the current project's most-recent session.
+- [ ] The `SessionStart` hook fires on session start, correctly reads
+      `session_id`/`cwd` from its stdin payload (not re-derived), and
+      writes/updates the branch-keyed mapping.
+- [ ] `chowa resume --message "..." in 5h` (no explicit session/agent)
+      resolves the session via the hook-recorded mapping for the current
+      branch and schedules a detached tmux session via `at`.
+- [ ] With no hook-recorded mapping for the current branch, resolution falls
+      back to most-recently-modified `.jsonl` and the command still works
+      (just with the documented lower-confidence caveat).
 - [ ] `chowa resume claude <explicit-session-id> --message "..." at 18:30`
-      works with an explicit session ID and absolute time.
+      works with an explicit session ID and absolute time, bypassing both
+      resolution paths entirely.
 - [ ] `chowa resume claude --auto` resolves the real `resets_at` via the
       zero-token probe and schedules for that time instead of a guess.
 - [ ] No code path passes `--dangerously-skip-permissions` or
