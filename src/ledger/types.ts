@@ -18,7 +18,8 @@ export interface LedgerEntry {
   readonly repoPath: string;
   readonly branch: string;
   readonly sessionName?: string;
-  /** What to send on resume; falls back to last_assistant_message if unset. */
+  /** What to send on resume. SessionStart never has this to give; StopFailure
+   *  fills it from `last_assistant_message` when the entry gets stamped. */
   readonly taskDescription?: string;
   readonly startedAt: string;
   readonly status: LedgerStatus;

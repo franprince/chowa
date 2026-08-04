@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:plugin": "bun build src/cli.ts --target=node --outfile=plugins/chowa/dist/cli.js",
+    "build:plugin": "bun build src/cli.ts --target=node --outfile=plugins/chowa/dist/cli.js && bun build src/integrations/claude-code/hooks/sessionStart.ts --target=node --outfile=plugins/chowa/dist/hooks/sessionStart.js && bun build src/integrations/claude-code/hooks/stopFailure.ts --target=node --outfile=plugins/chowa/dist/hooks/stopFailure.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

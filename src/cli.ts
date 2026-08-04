@@ -34,6 +34,8 @@ Commands:
   init       Scaffold a chowa.config.js for this project
   always-on  Apply (or stop applying) Chōwa's workflow to every project [on|off]
   install    Install the chowa skill for a harness with no plugin system
+  abandon    Stop tracking the current branch's session for auto-resume
+  ledger     Session auto-resume ledger: status | sweep | install
   help       Show this help message
 
 Options:
@@ -44,6 +46,7 @@ Options:
   --base <branch>       Base branch for PR description (default: main)
   --config <path>       Path to chowa.config.{ts,js,mjs} (default: probed in cwd)
   --agent <harness>     Target harness for "install" (gemini)
+  --reason <text>       Reason for "abandon"
   --help                Show this help message
 
 Examples:
@@ -53,6 +56,10 @@ Examples:
   chowa init
   chowa always-on on
   chowa install --agent gemini
+  chowa abandon --reason "switched approach"
+  chowa ledger status
+  chowa ledger sweep
+  chowa ledger install
 
 Claude Code doesn't need "install" — it gets Chōwa as a plugin:
   /plugin marketplace add franprince/chowa
@@ -286,6 +293,96 @@ async function handleModels(provider?: string): Promise<void> {
   console.log(JSON.stringify(models, null, 2));
 }
 
+async function handleAbandon(reason: string | undefined): Promise<void> {
+  const { GitOps } = await import('./git/gitOps.js');
+  const { ledgerKey, readLedger, writeLedger, abandonEntry } = await import('./ledger/index.js');
+
+  const gitOps = new GitOps();
+  const branch = await gitOps.getCurrentBranch();
+  const key = ledgerKey(process.cwd(), branch);
+
+  const ledger = readLedger();
+  if (!ledger.entries[key]) {
+    console.error(`No ledger entry for ${key} — nothing to abandon.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  writeLedger(abandonEntry(ledger, key, reason));
+  console.log(`✅ Abandoned the ledger entry for ${branch} — it will not be auto-resumed.`);
+}
+
+async function handleLedgerStatus(): Promise<void> {
+  const { readLedger } = await import('./ledger/index.js');
+
+  const entries = Object.entries(readLedger().entries);
+  if (entries.length === 0) {
+    console.log('No ledger entries.');
+    return;
+  }
+
+  for (const [key, entry] of entries) {
+    console.log(key);
+    console.log(`  session:  ${entry.sessionId}`);
+    console.log(`  status:   ${entry.status}`);
+    if (entry.blockedWindow) {
+      console.log(`  blocked:  ${entry.blockedWindow} window, resets ${entry.resetsAt}`);
+    }
+    console.log(`  attempts: ${entry.resumeAttempts}`);
+    console.log('');
+  }
+}
+
+async function handleLedgerSweep(): Promise<void> {
+  const { sweep } = await import('./integrations/claude-code/sweep.js');
+
+  const result = await sweep();
+
+  console.log(`Resumed ${result.resumed.length} session(s).`);
+  for (const entry of result.resumed) {
+    console.log(`  ✅ ${entry.repoPath}#${entry.branch} (${entry.sessionId})`);
+  }
+  if (result.failed.length > 0) {
+    console.log(`Failed to dispatch ${result.failed.length} entry(ies) — left for the next sweep:`);
+    for (const { entry, error } of result.failed) {
+      console.log(`  ❌ ${entry.repoPath}#${entry.branch}: ${error}`);
+    }
+  }
+}
+
+async function handleLedgerInstall(): Promise<void> {
+  if (process.platform !== 'linux') {
+    console.error('chowa ledger install currently only supports Linux (systemd user timers).');
+    process.exitCode = 1;
+    return;
+  }
+
+  const { planTimerInstall } = await import('./integrations/systemd/timer.js');
+  const { execFileSync } = await import('node:child_process');
+
+  // Reconstruct exactly how we were invoked (bun|node + this same script's
+  // resolved path) so the timer keeps working from src/, dist/, or the
+  // bundled plugin, without depending on cwd.
+  const execCommand = `"${process.execPath}" "${process.argv[1]}" ledger sweep`;
+  const plan = planTimerInstall({ homeDir: homedir(), execCommand });
+
+  try {
+    mkdirSync(dirname(plan.serviceUnitPath), { recursive: true });
+    writeFileSync(plan.serviceUnitPath, plan.serviceUnitContent, 'utf-8');
+    writeFileSync(plan.timerUnitPath, plan.timerUnitContent, 'utf-8');
+    console.log(`✅ Wrote ${plan.serviceUnitPath}`);
+    console.log(`✅ Wrote ${plan.timerUnitPath}`);
+
+    for (const command of plan.postInstallCommands) {
+      execFileSync(command[0]!, command.slice(1), { stdio: 'inherit' });
+    }
+    console.log('✅ Enabled chowa-resume-sweep.timer — check: systemctl --user list-timers');
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+}
+
 async function handleClaudeCodeBridge(configPath?: string): Promise<void> {
   const { ClaudeCodeBridge } = await import('./integrations/claude-code/bridge.js');
   const { ChowaClient } = await import('./client.js');
@@ -339,6 +436,7 @@ async function main(): Promise<void> {
       base: { type: 'string', default: 'main' },
       config: { type: 'string' },
       agent: { type: 'string' },
+      reason: { type: 'string' },
       help: { type: 'boolean', default: false },
     },
   });
@@ -382,6 +480,27 @@ async function main(): Promise<void> {
 
     case 'install':
       await handleInstall(values.agent);
+      break;
+
+    case 'abandon':
+      await handleAbandon(values.reason);
+      break;
+
+    case 'ledger':
+      switch (positionals[1]) {
+        case 'status':
+          await handleLedgerStatus();
+          break;
+        case 'sweep':
+          await handleLedgerSweep();
+          break;
+        case 'install':
+          await handleLedgerInstall();
+          break;
+        default:
+          console.error(`Unknown "chowa ledger" subcommand: ${positionals[1] ?? '(none)'}. Use status, sweep, or install.`);
+          process.exitCode = 1;
+      }
       break;
 
     case 'sync-global':

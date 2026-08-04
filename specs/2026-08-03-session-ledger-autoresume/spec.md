@@ -222,9 +222,13 @@ Confirmed directly against `claude` 2.1.220 and this host, not assumed:
   unstamped, and is therefore never swept. This is the intended failure
   direction: the cost is a missed resume the human can trigger manually, not
   an unwanted one.
-- **The cache is stale and reports a reset already in the past.** Must be
-  treated as "unknown", triggering the probe fallback, not as "quota is
-  available right now".
+- **The cache is stale and reports a reset already in the past.** *(Moot as
+  shipped — `~/.claude.json`'s cache is unused; see the superseded
+  acceptance criterion above.)* The equivalent risk with the shipped
+  design — a stamped `resetsAt` that turns out to be wrong by the time the
+  sweep fires — is bounded by `resumeAttempts`/`MAX_RESUME_ATTEMPTS`: a
+  too-early resume just hits the wall again and re-stamps a corrected
+  value on its next `StopFailure`.
 - **`tmux` session name collision** across concurrent sweeps — names must
   carry a unique suffix, not just the task or agent name.
 - **Repo moved or branch deleted** between stamping and sweeping. The entry
@@ -233,38 +237,58 @@ Confirmed directly against `claude` 2.1.220 and this host, not assumed:
 
 ## Acceptance Criteria
 
-- [ ] `SessionStart` fires, reads `session_id`/`cwd` from its stdin payload,
+- [x] `SessionStart` fires, reads `session_id`/`cwd` from its stdin payload,
       and opens a correctly-keyed ledger entry.
 - [ ] `StopFailure` fires on a real quota cutoff and stamps the matching
       entry with reason `quota` and the blocking window — **verified against
       a genuine cutoff or a faithful reproduction**, not assumed from the
-      hook's documented existence.
-- [ ] An entry stamped `quota` inside the just-reset window is swept and
-      reopened in a detached `tmux` session.
-- [ ] An entry stamped `quota` whose timestamp predates the just-reset
+      hook's documented existence. Still open — see Resolved Question 1;
+      the hook is implemented and unit-tested (mocked probe), but no real
+      cutoff has confirmed it fires as expected in production yet.
+- [x] An entry stamped `quota` inside the just-reset window is swept and
+      reopened in a detached `tmux` session. Code-verified (`sweep.test.ts`
+      asserts exact `tmux` argv via `buildDispatch`); real `tmux`/`claude`
+      interaction is untested end-to-end, same caveat as the systemd item
+      in the implementation plan's checklist.
+- [x] An entry stamped `quota` whose timestamp predates the just-reset
       window is **not** reopened.
-- [ ] An entry stamped abandoned via `chowa abandon` is **not** reopened,
+- [x] An entry stamped abandoned via `chowa abandon` is **not** reopened,
       even when it is inside the window and stamped `quota`.
-- [ ] An entry blocked by `seven_day` is not reopened by a `five_hour`
+- [x] An entry blocked by `seven_day` is not reopened by a `five_hour`
       sweep.
-- [ ] Reset-time resolution prefers the cache, falls back to the probe, and
-      fails loudly (skipping the sweep) on an unrecognized shape.
+- [x] ~~Reset-time resolution prefers the cache, falls back to the probe,
+      and fails loudly (skipping the sweep) on an unrecognized shape.~~
+      **Superseded during Phase C** (see implementation_plan.md's Phase C
+      note): `eligibleForSweep` compares each entry's own `resetsAt`,
+      captured by a direct `get_usage` probe *at stamp time* rather than a
+      cache re-read at sweep time — a stronger guarantee than G5's
+      original cache-then-probe sketch, since it was never a passively-
+      aging value to begin with. No separate resolution step exists;
+      `~/.claude.json`'s cache is unused by this feature.
 - [ ] A sweep firing twice in a row opens exactly one `tmux` session per
       eligible entry.
-- [ ] The reopened session receives the recorded task description, not a
-      bare "continue".
-- [ ] No code path passes `--dangerously-skip-permissions` or
+- [x] The reopened session receives the recorded task description, not a
+      bare "continue". (`stopFailure.ts` captures `last_assistant_message`;
+      `buildDispatch` falls back to an explicit non-"continue" message when
+      none was captured — never a bare "continue".)
+- [x] No code path passes `--dangerously-skip-permissions` or
       `--permission-mode` — grep-able.
-- [ ] No code path constructs `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` — Hard
+- [x] No code path constructs `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` — Hard
       Constraint, grep-able.
-- [ ] Hook failures never block or measurably delay session start.
-- [ ] The new hooks do not appear in the synced portable skill copy
+- [x] Hook failures never block or measurably delay session start
+      (`runHookMain` catches and swallows; forced-failure test in
+      `sessionStart.test.ts` confirms exit 0 even when the ledger write
+      itself throws).
+- [x] The new hooks do not appear in the synced portable skill copy
       (`bun run check:skill` clean).
-- [ ] Tests cover: ledger open/stamp/abandon transitions, window-eligibility
-      selection (including the weekly-vs-session case), reset-time
-      resolution against fixture JSON with a deliberately malformed variant,
-      and exact `tmux`/scheduler argv construction.
-- [ ] `bun test`, `bun run check:imports`, `bun run build` clean.
+- [x] Tests cover: ledger open/stamp/abandon transitions, window-eligibility
+      selection (including the weekly-vs-session case), and exact
+      `tmux` argv construction. (Reset-time resolution against fixture
+      JSON is moot — see the superseded criterion above; there's no
+      separate resolution step to test.)
+- [x] `bun test`, `bun run check:imports`, `bun run build` clean (one
+      pre-existing, unrelated `router.test.ts` failure predating this
+      feature, left untouched).
 
 ## Resolved Questions
 

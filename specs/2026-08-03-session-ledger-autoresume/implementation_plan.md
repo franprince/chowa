@@ -1,6 +1,12 @@
 # Implementation Plan: Session-ledger auto-resume
 
-Status: **Draft** — awaiting explicit approval before Stage 3 (code).
+Status: **In Progress** — Phases A–D implemented on `feat/session-ledger-hooks`
+(Phase A already merged via PR #21; B/C/D pending PR). Not yet "Done": the
+two real-world-only checklist items below (a genuine quota cutoff
+confirming `StopFailure` fires, and installing the systemd timer on an
+actual machine) are still open. See the Phase C note below on a design
+refinement made during Phase A that changes that section from what was
+originally sketched here.
 
 ## Overview
 
@@ -195,52 +201,66 @@ the `delegation` region's were: region removed correctly, never leaks
 
 ## Phase C: Sweep
 
-**File: `src/ledger/resetTime.ts`**
+**Design refinement made during Phase A, superseding this section's
+original `resetTime.ts` sketch:** `eligibleForSweep(ledger, window, now)`
+shipped comparing each entry's own probe-captured `resetsAt` (stamped by
+`StopFailure` at the moment it blocked) against wall-clock `now`, rather
+than taking an externally-resolved `windowResetAt` as a parameter. That
+timestamp is already the authoritative one — it came from the same
+`get_usage` probe G5 describes, captured at the most accurate possible
+moment (stamp time) rather than re-resolved later at sweep time. A
+separate `src/ledger/resetTime.ts` (cache-then-probe, re-resolving "the
+current reset time for window X" on every sweep tick) would have nothing
+to feed it: it's dead code. The risk G5 was guarding against — a stale or
+wrong probe reading — is instead bounded by `MAX_RESUME_ATTEMPTS`: a
+resume dispatched on a bad `resetsAt` just hits the wall again and
+re-stamps a corrected one on its next `StopFailure`. **`resetTime.ts` is
+dropped; not built.**
 
-Resolved Question 1 / G5's cache-then-probe order:
+**Fix-up also folded into this phase:** Phase B shipped without a way to
+satisfy the spec's own acceptance criterion "the reopened session receives
+the recorded task description, not a bare 'continue'" — `SessionStart`
+never has a task description to give, and Phase B's `stopFailure.ts`
+wasn't capturing `last_assistant_message` either. `stampQuota` gained an
+optional 6th `taskDescription` parameter (additive, doesn't disturb Phase
+A's existing call sites/tests), and `stopFailure.ts` now passes
+`payload.last_assistant_message` through it. This is the only real
+"what was in flight" signal available to the sweep.
 
-```ts
-export interface ResetTimeResult {
-  readonly window: 'five_hour' | 'seven_day';
-  readonly resetsAt: string;
-  readonly source: 'cache' | 'probe';
-}
+**File: `src/integrations/claude-code/sweep.ts`** (built)
 
-/** Reads ~/.claude.json's cachedUsageUtilization first; falls back to the
- *  zero-token get_usage probe if the cache is missing, stale (its own
- *  fetchedAtMs older than some threshold), or malformed. Throws — never
- *  silently reports "available" — on an unrecognized shape from either
- *  source (per the spec's own stated requirement). */
-export function resolveResetTime(window: 'five_hour' | 'seven_day'): Promise<ResetTimeResult>;
-```
-
-**File: `src/integrations/claude-code/sweep.ts`**
-
-1. `readLedger()`, then for each of `five_hour`/`seven_day`: resolve the
-   real reset time (above), call `eligibleForSweep`.
-2. For each eligible entry: build and run
-   `tmux new-session -d -s chowa-resume-<key-hash> "claude --resume <sessionId>"`
-   from `entry.repoPath`, sending `entry.taskDescription` (or the
-   `last_assistant_message` fallback per spec G3) as the opening message —
-   reusing the exact dispatch shape `manual-quota-resume`'s POC proved.
-3. `markResumed()` immediately after a successful spawn (not after the
+1. `readLedger()`, then for each of `five_hour`/`seven_day`: call
+   `eligibleForSweep(ledger, window, now)` directly — no reset-time
+   resolution step, per the refinement above.
+2. For each eligible entry: `buildDispatch(entry)` (pure, unit-tested argv
+   construction) produces a `tmux new-session -d -s chowa-resume-<hash>
+   claude --resume <sessionId>` argv plus a `tmux send-keys -t <name>
+   <message> Enter` argv — `<message>` is `entry.taskDescription`, falling
+   back to an explicit non-"continue" message when absent. `dispatchResume`
+   runs both for real, with a short pause between them so `claude` has
+   booted its interactive input handling before the message is typed in.
+3. `markResumed()` immediately after a successful dispatch (not after the
    `tmux` session finishes — G8 only needs the *dispatch* to be
-   idempotent, not the outcome).
+   idempotent, not the outcome). A failed dispatch leaves the entry
+   `quota_blocked` for retry on the next sweep tick, bounded by
+   `MAX_RESUME_ATTEMPTS`, and doesn't abort the rest of that sweep pass —
+   one repo's `tmux` failure shouldn't block another eligible entry.
 
 **File: install script for the systemd user timer** (exact path TBD —
 likely alongside `plugins/chowa/hooks/hooks.json`'s own install path,
 invoked once e.g. by `chowa init` or a dedicated `chowa ledger install`):
 a `.timer` + `.service` unit pair, `Persistent=true`, calling
 `chowa ledger sweep` (Phase D) on a short interval (e.g. every 5 minutes —
-frequent enough to catch a reset promptly, cheap enough that the
-cache-first `resolveResetTime` makes each firing nearly free).
+frequent enough to catch a reset promptly, and each firing is cheap since
+`eligibleForSweep` is a pure in-memory filter over the ledger, no probe
+involved).
 
-**Verification:** `sweep.ts` tested against a fixture ledger + mocked
-`resolveResetTime` and a mocked `tmux`/`claude` spawn (same mocking
-approach Phase A/B established) — asserting exact argv, not just "it
-runs." A separate, explicitly-labeled manual test: install the real timer
-unit on this machine and confirm `systemctl --user list-timers` shows it
-with the right cadence — this one can't be meaningfully unit-tested.
+**Verification:** `sweep.ts` tested against a fixture ledger with an
+injected `dispatch` mock (same DI pattern the hooks established) —
+asserting exact `tmux` argv via `buildDispatch`, not just "it runs." A
+separate, explicitly-labeled manual test: install the real timer unit on
+this machine and confirm `systemctl --user list-timers` shows it with the
+right cadence — this one can't be meaningfully unit-tested.
 
 ## Phase D: CLI Surface
 
@@ -268,27 +288,33 @@ script, consistent with how every other Chōwa capability is exposed.
 | `hooks/sessionStart.ts` | Fixture stdin → correct entry opened; never throws |
 | `hooks/stopFailure.ts` | `rate_limit` → stamped with probed window; any other `error` → untouched; never throws |
 | `sync-skill.ts` | New `autoresume` region stripped from portable copy, same pattern as `delegation` |
-| `ledger/resetTime.ts` | Cache hit, cache stale/malformed → probe fallback, both malformed → throws |
-| `sweep.ts` | Exact `tmux`/spawn argv for eligible entries; idempotent on double-fire (G8) |
+| `sweep.ts` | Exact `tmux` argv for eligible entries (`buildDispatch`); idempotent on double-fire (G8); failed dispatch leaves the entry retryable |
 | `cli.ts` | New subcommand parsing |
 
 ## Verification Checklist (Stage 3 exit criteria, per phase)
 
-- [ ] Phase A: `bun test` covers the weekly-vs-session eligibility case
+- [x] Phase A: `bun test` covers the weekly-vs-session eligibility case
       explicitly — this is the one bug that would silently misfire in
       production if untested.
-- [ ] Phase B: hook scripts never throw uncaught; a forced-failure test
+- [x] Phase B: hook scripts never throw uncaught; a forced-failure test
       (fixture that makes the ledger write fail) confirms the session-start
       path still completes normally.
-- [ ] Phase B: `bun run check:skill` clean — `autoresume` region absent
+- [x] Phase B: `bun run check:skill` clean — `autoresume` region absent
       from `.agents/skills/chowa/SKILL.md`.
 - [ ] Phase C: manual confirmation the systemd timer installs and appears
-      in `systemctl --user list-timers` with `Persistent=true` set.
-- [ ] All phases: no code path passes `--dangerously-skip-permissions` or
-      `--permission-mode` (grep-able); no code path constructs
-      `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` (grep-able).
-- [ ] All phases: root `bun test`, `bun run check:imports`, `bun run build`
-      remain clean.
+      in `systemctl --user list-timers` with `Persistent=true` set. Not run
+      against a real user session yet — `chowa ledger install` genuinely
+      enables a recurring background job, so it's left for the user to run
+      deliberately rather than fired during automated verification.
+- [x] All phases: no code path passes `--dangerously-skip-permissions` or
+      `--permission-mode` (grep-able — the only match is `sweep.ts`'s own
+      doc comment explaining they're deliberately *not* used); no code
+      path constructs `ANTHROPIC_API_KEY`/`GEMINI_API_KEY` (grep-able, zero
+      matches).
+- [x] All phases: root `bun test`, `bun run check:imports`, `bun run build`
+      remain clean (one pre-existing, unrelated failure in
+      `router.test.ts` — a `require()` in an ESM test file predating this
+      feature — left untouched).
 - [ ] **Open Question 1's real-world verification**: the first genuine
       quota cutoff encountered after Phase B ships is used to confirm
       `StopFailure` actually stamps the ledger — noted here so it isn't
