@@ -82,6 +82,28 @@ describe('stopFailure hook — main()', () => {
     expect(entry?.resetsAt).toBe('2026-08-04T05:00:00.000Z');
   });
 
+  it('records last_assistant_message as the task description', async () => {
+    const repo = await makeRepo();
+    const ledgerPath = scratchLedgerPath();
+    const key = `${repo}#feat/x`;
+    writeLedger({ entries: { [key]: openEntryFixture(repo, 'feat/x') } }, { path: ledgerPath });
+
+    const probeUsage = async (): Promise<UsageSnapshot> => usageSnapshot(0.92, 0.4);
+
+    await main(
+      {
+        session_id: 'sess-abc',
+        cwd: repo,
+        error: 'rate_limit',
+        last_assistant_message: 'Was mid-refactor of the router module.',
+      },
+      { ledgerOptions: { path: ledgerPath }, probeUsage },
+    );
+
+    const entry = readLedger({ path: ledgerPath }).entries[key];
+    expect(entry?.taskDescription).toBe('Was mid-refactor of the router module.');
+  });
+
   it('picks seven_day when it is the tighter window', async () => {
     const repo = await makeRepo();
     const ledgerPath = scratchLedgerPath();

@@ -85,6 +85,27 @@ describe('stampQuota', () => {
     const stamped = stampQuota(EMPTY_LEDGER, key, 'five_hour', '2026-08-04T05:00:00.000Z');
     expect(stamped).toEqual(EMPTY_LEDGER);
   });
+
+  it('records a task description when one is given (e.g. last_assistant_message)', () => {
+    const ledger = ledgerWith({ status: 'open' });
+    const stamped = stampQuota(
+      ledger,
+      key,
+      'five_hour',
+      '2026-08-04T05:00:00.000Z',
+      undefined,
+      'Was mid-refactor of the router module.',
+    );
+
+    expect(stamped.entries[key]!.taskDescription).toBe('Was mid-refactor of the router module.');
+  });
+
+  it('keeps the existing task description when none is given', () => {
+    const ledger = ledgerWith({ status: 'open', taskDescription: 'original description' });
+    const stamped = stampQuota(ledger, key, 'five_hour', '2026-08-04T05:00:00.000Z');
+
+    expect(stamped.entries[key]!.taskDescription).toBe('original description');
+  });
 });
 
 describe('abandonEntry', () => {

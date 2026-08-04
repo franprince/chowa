@@ -14,6 +14,11 @@
  * blocked the session, so this probes `get_usage` (zero-token) at stamp
  * time to find the window currently at the highest utilization and its
  * exact `resets_at`, rather than trusting the free-text `error_details`.
+ *
+ * Also captures `last_assistant_message`, when present, as the entry's
+ * task description — `SessionStart` never has a task description to give
+ * it, so this is the only real signal of what was in flight for the sweep
+ * to hand back to the resumed session instead of a bare "continue".
  */
 
 import { simpleGit } from 'simple-git';
@@ -39,6 +44,7 @@ export interface StopFailurePayload {
   readonly session_id: string;
   readonly cwd: string;
   readonly error: StopFailureErrorReason;
+  readonly last_assistant_message?: string;
 }
 
 function tightestWindow(snapshot: UsageSnapshot): { name: LedgerWindow; window: ProbedWindow } | null {
@@ -68,7 +74,14 @@ export async function main(payload: StopFailurePayload, deps: StopFailureDeps = 
   if (!tightest) return;
 
   const ledger = readLedger(deps.ledgerOptions);
-  const updated = stampQuota(ledger, key, tightest.name, tightest.window.resetsAt.toISOString());
+  const updated = stampQuota(
+    ledger,
+    key,
+    tightest.name,
+    tightest.window.resetsAt.toISOString(),
+    undefined,
+    payload.last_assistant_message,
+  );
   writeLedger(updated, deps.ledgerOptions);
 }
 

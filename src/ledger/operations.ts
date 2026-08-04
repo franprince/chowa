@@ -46,6 +46,12 @@ export function openEntry(
  * No-op (returns the ledger unchanged) if `key` isn't present, since a
  * `StopFailure` firing for a session `SessionStart` never opened (e.g. the
  * hook was installed mid-session) has nothing to stamp.
+ *
+ * `taskDescription`, when given, overwrites the entry's own — `SessionStart`
+ * never has anything to put there, so the last thing the assistant said
+ * before dying (`StopFailure`'s own `last_assistant_message`) is the only
+ * real description of what was in flight the sweep can later hand back to
+ * the resumed session instead of a bare "continue".
  */
 export function stampQuota(
   ledger: Ledger,
@@ -53,6 +59,7 @@ export function stampQuota(
   window: LedgerWindow,
   resetsAt: string,
   stampedAt: string = new Date().toISOString(),
+  taskDescription?: string,
 ): Ledger {
   const existing = ledger.entries[key];
   if (!existing) return ledger;
@@ -63,6 +70,7 @@ export function stampQuota(
     blockedWindow: window,
     resetsAt,
     stampedAt,
+    taskDescription: taskDescription ?? existing.taskDescription,
   });
 }
 
