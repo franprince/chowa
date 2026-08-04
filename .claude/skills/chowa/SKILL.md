@@ -113,6 +113,30 @@ Accepts `{ action: 'call' | 'commit' | 'pr' | 'route' | 'models', ... }` on
 stdin and returns a `ClaudeCodeResponse` on stdout. See
 `src/integrations/claude-code/bridge.ts` for the request/response shapes.
 
+### 9. Delegating Mechanical Sub-Tasks
+
+Not every step of a live pipeline needs the primary session's model. A
+sub-task qualifies for delegation only if, before delegating, you can state
+exactly what the correct output looks like (or exactly what mechanical rule
+to apply) — renames, formatting passes, boilerplate scaffolding, and the
+same shape of work `chowa commit`/`chowa pr` already delegate on your
+behalf (a rigid, checkable output generated from an already fully-specified
+input). If any part of "what should this become" is still an open design
+question, don't delegate — handle it inline.
+
+Skip delegation for trivial one-line edits — the round-trip costs more than
+it saves. Delegate only when the mechanical work is large or repetitive
+enough (a multi-file rename sweep, a repo-wide formatting pass) that
+running it on a cheaper model is worth a subagent call.
+
+To delegate, use the `Agent` tool with `chowa-mechanical` as the subagent,
+and ask it to report back a structured summary of exactly what changed —
+not just "done" — so you don't need to re-read every touched file
+yourself. If the user has asked you to handle a specific step directly,
+that overrides delegation for that step only. If the subagent hits
+something needing judgment mid-task, expect it to stop and hand back
+rather than deciding on its own.
+
 ## Chōwa CLI Reference
 
 | Command | Description |

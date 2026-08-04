@@ -5,14 +5,16 @@
  * `plugins/chowa/skills/chowa/SKILL.md` is the canonical skill. Harnesses
  * without a plugin system (Gemini, Antigravity) read
  * `.agents/skills/chowa/SKILL.md` instead, which must say the same thing
- * with one exception: the invocation section, which is Claude-Code-specific
- * because it names `${CLAUDE_PLUGIN_ROOT}`.
+ * with two exceptions, each Claude-Code-specific and marked accordingly:
+ * the invocation section (names `${CLAUDE_PLUGIN_ROOT}`), and the mechanical
+ * sub-task delegation section (names the `Agent` tool and a subagent —
+ * neither has a Gemini/Antigravity equivalent).
  *
  * Rather than maintain two documents and let them drift — the failure this
  * whole distribution effort exists to fix — the portable copy is generated
- * from the canonical one, with only the marked invocation region swapped.
- * CI regenerates and diffs, so an edit to the canonical file that isn't
- * synced fails the build.
+ * from the canonical one, with only the marked regions swapped. CI
+ * regenerates and diffs, so an edit to the canonical file that isn't synced
+ * fails the build.
  *
  * Usage:
  *   bun run scripts/sync-skill.ts          # write .agents/skills/chowa/SKILL.md
@@ -26,9 +28,6 @@ const repoRoot = resolve(import.meta.dirname, '..');
 
 export const CANONICAL_SKILL = join(repoRoot, 'plugins/chowa/skills/chowa/SKILL.md');
 export const PORTABLE_SKILL = join(repoRoot, '.agents/skills/chowa/SKILL.md');
-
-const START_MARKER = '<!-- chowa:invocation:start -->';
-const END_MARKER = '<!-- chowa:invocation:end -->';
 
 /**
  * The invocation section for harnesses that have no plugin root to resolve.
@@ -47,32 +46,61 @@ installed — typically the bundled engine at
 version. If neither runtime is available, say so and stop rather than
 guessing.`;
 
+interface RegionSwap {
+  /** Used only in error messages, to say which region is missing/inverted. */
+  readonly label: string;
+  readonly start: string;
+  readonly end: string;
+  /** Replacement text for the portable copy; '' removes the region entirely. */
+  readonly replacement: string;
+}
+
+const REGION_SWAPS: readonly RegionSwap[] = [
+  {
+    label: 'invocation',
+    start: '<!-- chowa:invocation:start -->',
+    end: '<!-- chowa:invocation:end -->',
+    replacement: PORTABLE_INVOCATION,
+  },
+  {
+    label: 'delegation',
+    start: '<!-- chowa:delegation:start -->',
+    end: '<!-- chowa:delegation:end -->',
+    // No Agent-tool/subagent equivalent on Gemini/Antigravity — omit the
+    // section entirely rather than ship a dangling half-instruction.
+    replacement: '',
+  },
+];
+
 /**
- * Swap the marked invocation region for the portable one.
+ * Swap every marked region for its portable equivalent, in order.
  *
- * Throws rather than silently passing the canonical text through if the
- * markers are missing — a rename that loses them would otherwise ship
- * `${CLAUDE_PLUGIN_ROOT}` instructions to a harness that cannot resolve it.
+ * Throws rather than silently passing the canonical text through if a
+ * region's markers are missing — a rename that loses them would otherwise
+ * ship Claude-Code-only instructions to a harness that can't act on them.
  */
 export function toPortable(canonical: string): string {
-  const start = canonical.indexOf(START_MARKER);
-  const end = canonical.indexOf(END_MARKER);
+  return REGION_SWAPS.reduce((text, swap) => applySwap(text, swap), canonical);
+}
+
+function applySwap(text: string, swap: RegionSwap): string {
+  const start = text.indexOf(swap.start);
+  const end = text.indexOf(swap.end);
 
   if (start === -1 || end === -1) {
     throw new Error(
-      `Canonical skill is missing the ${START_MARKER} / ${END_MARKER} markers — ` +
-        `cannot generate the portable copy without knowing which region is ` +
-        `Claude-Code-specific.`,
+      `Canonical skill is missing the ${swap.label} region markers ` +
+        `(${swap.start} / ${swap.end}) — cannot generate the portable copy ` +
+        `without knowing which region is Claude-Code-specific.`,
     );
   }
   if (end < start) {
-    throw new Error(`Canonical skill has ${END_MARKER} before ${START_MARKER}.`);
+    throw new Error(
+      `Canonical skill has ${swap.label}'s end marker before its start marker.`,
+    );
   }
 
-  const head = canonical.slice(0, start);
-  const tail = canonical.slice(end + END_MARKER.length);
-
-  return `${head}${PORTABLE_INVOCATION}${tail}`;
+  return text.slice(0, start) + swap.replacement + text.slice(end + swap.end.length);
 }
 
 function main(): void {
