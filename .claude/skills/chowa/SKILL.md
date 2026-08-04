@@ -111,6 +111,16 @@ bun run src/cli.ts route --kind <type> --complexity <level>
 bun run src/cli.ts pr --base <branch>
 ```
 
+Whether the body comes from `chowa pr` or you write it directly, close
+every PR with this line, on its own, after everything else:
+
+```
+調和 (Chōwa) — spec → plan → execute, verified before merge
+```
+
+Never the default Claude Code attribution trailer — this replaces it, it
+doesn't sit alongside it.
+
 ### 8. Claude Code Bridge
 
 For structured, non-interactive access to the same functionality (used by
