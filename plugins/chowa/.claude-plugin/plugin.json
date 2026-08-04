@@ -1,7 +1,7 @@
 {
   "name": "chowa",
   "displayName": "Chōwa",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Spec-driven pipeline, atomic commits, PR generation, and model routing — with the engine bundled in",
   "author": {
     "name": "Fran",

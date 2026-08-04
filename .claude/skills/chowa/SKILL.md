@@ -60,6 +60,17 @@ For all feature requests and non-trivial changes, always follow this 3-stage lif
   - Never PR or push directly to `main`/`master` outside of a `release/*` or
     `hotfix/*` branch.
 - Always create a PR against the target base branch; ask the user first.
+- After opening a PR, check `gh pr view <n> --json mergeable,mergeStateStatus`
+  — don't treat "the PR exists" as "the PR is ready." **`release/*` →
+  `main` PRs in this repo routinely come back `CONFLICTING`**: `develop`
+  never carries `plugins/chowa/dist/` (see the CI `no-bundle-off-main`
+  job), so each release branch's own version bump and freshly-built bundle
+  collide with whatever `main` already has from the *previous* release —
+  every release branch from v0.2.1 through v0.5.0 needed this same fixup.
+  Expect it, don't debug it as a surprise: `git merge origin/main`, keep
+  your branch's version number, rebuild `plugins/chowa/dist/` fresh from
+  the merged source (don't just pick one side), then re-run `bun run
+  verify` before pushing again.
 
 ### 3. Remote Update Checks
 
@@ -113,6 +124,48 @@ Accepts `{ action: 'call' | 'commit' | 'pr' | 'route' | 'models', ... }` on
 stdin and returns a `ClaudeCodeResponse` on stdout. See
 `src/integrations/claude-code/bridge.ts` for the request/response shapes.
 
+### 9. Delegating Mechanical Sub-Tasks
+
+Not every step of a live pipeline needs the primary session's model. A
+sub-task qualifies for delegation only if, before delegating, you can state
+exactly what the correct output looks like (or exactly what mechanical rule
+to apply) — renames, formatting passes, boilerplate scaffolding, and the
+same shape of work `chowa commit`/`chowa pr` already delegate on your
+behalf (a rigid, checkable output generated from an already fully-specified
+input). If any part of "what should this become" is still an open design
+question, don't delegate — handle it inline.
+
+Skip delegation for trivial one-line edits — the round-trip costs more than
+it saves. Delegate only when the mechanical work is large or repetitive
+enough (a multi-file rename sweep, a repo-wide formatting pass) that
+running it on a cheaper model is worth a subagent call.
+
+To delegate, first resolve the target model — run
+`bun run src/cli.ts route --kind mechanical --complexity low` (the same
+profile `chowa commit`/`chowa pr` already use) and read `target.model` from
+its JSON output. Then invoke the `Agent` tool with `chowa-mechanical` as the
+subagent and that resolved value as an explicit `model:` override — this
+takes precedence over whatever the subagent definition's own frontmatter
+pins, so the actual model always reflects the live routing policy
+(`chowa.config.ts`) rather than a value hardcoded in the subagent file. Ask
+it to report back a structured summary of exactly what changed — not just
+"done" — so you don't need to re-read every touched file yourself. If the
+user has asked you to handle a specific step directly, that overrides
+delegation for that step only. If the subagent hits something needing
+judgment mid-task, expect it to stop and hand back rather than deciding on
+its own.
+
+### 10. Quota-Aware Session Auto-Resume
+
+Chōwa tracks every session's lifecycle automatically via `SessionStart`/
+`StopFailure` hooks — there is nothing for you to invoke. When a session
+ends specifically because of a rate limit, it's stamped in a local ledger
+(`~/.chowa/sessions.json`) with the window that blocked it and when that
+window resets; a periodic sweep then resumes eligible sessions once quota
+is back. This is transparent background bookkeeping — don't reference or
+hand-edit the ledger file, and don't mention it to the user unless they
+ask about it.
+
 ## Chōwa CLI Reference
 
 | Command | Description |
@@ -122,15 +175,10 @@ stdin and returns a `ClaudeCodeResponse` on stdout. See
 | `bun run src/cli.ts route --kind <k> --complexity <c>` | Resolve task to model |
 | `bun run src/cli.ts pr --base <branch>` | Generate PR description |
 | `bun run src/cli.ts claude-code-bridge` | JSON-in/JSON-out bridge for tooling |
+| `bun run src/cli.ts abandon [--reason <text>]` | Stop tracking the current branch's session for auto-resume |
+| `bun run src/cli.ts ledger status` | List tracked sessions and their auto-resume state |
+| `bun run src/cli.ts ledger sweep` | Resume any sessions whose blocking quota window has reset |
+| `bun run src/cli.ts ledger install` | Install the systemd user timer that runs `ledger sweep` on a schedule (Linux only) |
 | `bun run check:imports` | Verify dependency boundaries |
 | `bun test` | Run full test suite |
 | `bun run build` | Compile TypeScript cleanly |
-
-## Known Gap
-
-As of this writing, `chowa route`/`commit`/`pr` do **not** actually read
-`chowa.config.ts` — `loadPolicy()` in `src/cli.ts` returns a hardcoded policy
-and ignores `--config`. See
-`specs/2026-08-01-routing-config-wiring/` for the fix in progress. Until
-that lands, do not rely on editing `chowa.config.ts` to change routing
-behavior.

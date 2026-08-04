@@ -112,6 +112,13 @@ For all feature requests and non-trivial changes, follow this 3-stage lifecycle:
   directly. Never push or PR straight to `main`/`master` outside that flow.
 - Always ask the user if they want a PR opened, whenever creating a new
   branch and committing.
+- After opening a PR, check whether it's actually mergeable against its
+  base (`gh pr view <n> --json mergeable,mergeStateStatus`) — don't treat
+  "the PR exists" as "the PR is ready." A base branch that moved since you
+  branched (especially `develop` → `main` on a `release/*`/`hotfix/*` PR)
+  can leave it `CONFLICTING` with no error at creation time, and CI may
+  not even run until it's resolved. If so, merge the base branch into your
+  branch locally, resolve, push, and re-verify before calling the PR done.
 
 ### 3. Remote Update Checks
 
@@ -160,6 +167,51 @@ chowa route --kind <type> --complexity <level>
 chowa pr --base <branch>
 ```
 
+<!-- chowa:delegation:start -->
+### 8. Delegating Mechanical Sub-Tasks
+
+Not every step of a live pipeline needs the primary session's model. A
+sub-task qualifies for delegation only if, before delegating, you can state
+exactly what the correct output looks like (or exactly what mechanical rule
+to apply) — renames, formatting passes, boilerplate scaffolding, and the
+same shape of work `chowa commit`/`chowa pr` already delegate on your
+behalf (a rigid, checkable output generated from an already fully-specified
+input). If any part of "what should this become" is still an open design
+question, don't delegate — handle it inline.
+
+Skip delegation for trivial one-line edits — the round-trip costs more than
+it saves. Delegate only when the mechanical work is large or repetitive
+enough (a multi-file rename sweep, a repo-wide formatting pass) that
+running it on a cheaper model is worth a subagent call.
+
+To delegate, first resolve the target model — run `chowa route --kind
+mechanical --complexity low` (the same profile `chowa commit`/`chowa pr`
+already use) and read `target.model` from its JSON output. Then invoke the
+`Agent` tool with `chowa:chowa-mechanical` as the subagent and that
+resolved value as an explicit `model:` override — this takes precedence
+over whatever the subagent definition's own frontmatter pins, so the actual
+model always reflects the live routing policy (`chowa.config.ts`) rather
+than a value hardcoded in the subagent file. Ask it to report back a
+structured summary of exactly what changed — not just "done" — so you
+don't need to re-read every touched file yourself. If the user has asked
+you to handle a specific step directly, that overrides delegation for that
+step only. If the subagent hits something needing judgment mid-task, expect
+it to stop and hand back rather than deciding on its own.
+<!-- chowa:delegation:end -->
+
+<!-- chowa:autoresume:start -->
+### 9. Quota-Aware Session Auto-Resume
+
+Chōwa tracks every session's lifecycle automatically via `SessionStart`/
+`StopFailure` hooks — there is nothing for you to invoke. When a session
+ends specifically because of a rate limit, it's stamped in a local ledger
+(`~/.chowa/sessions.json`) with the window that blocked it and when that
+window resets; a periodic sweep then resumes eligible sessions once quota
+is back. This is transparent background bookkeeping — don't reference or
+hand-edit the ledger file, and don't mention it to the user unless they
+ask about it.
+<!-- chowa:autoresume:end -->
+
 ## Chōwa CLI Reference
 
 | Command | Description |
@@ -171,6 +223,10 @@ chowa pr --base <branch>
 | `chowa init` | Scaffold a `chowa.config.js` for this project |
 | `chowa always-on [on\|off]` | Apply (or stop applying) Chōwa's workflow to every project, regardless of per-project signals; no argument checks current status |
 | `chowa install --agent <harness>` | Install this skill for a harness without a plugin system (e.g. `gemini`) |
+| `chowa abandon [--reason <text>]` | Stop tracking the current branch's session for auto-resume |
+| `chowa ledger status` | List tracked sessions and their auto-resume state |
+| `chowa ledger sweep` | Resume any sessions whose blocking quota window has reset (what the installed timer calls) |
+| `chowa ledger install` | Install the systemd user timer that runs `ledger sweep` on a schedule (Linux only) |
 
 Chōwa reads its routing policy from `chowa.config.ts`, `chowa.config.js`, or
 `chowa.config.mjs` at the project root, falling back to a built-in default

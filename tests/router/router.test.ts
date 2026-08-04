@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { resolve } from '../../src/router/router.js';
+import { resolve, resolveModelTier } from '../../src/router/router.js';
 import type { RoutingPolicy, TaskProfile } from '../../src/router/types.js';
 
 // ---------------------------------------------------------------------------
@@ -147,7 +147,6 @@ describe('router.resolve', () => {
 
 describe('resolveModelTier', () => {
   it('should resolve semantic model tier to matching available model', () => {
-    const { resolveModelTier } = require('../../src/router/router.js');
     const availableModels = [
       { id: 'gemini-3.6-flash', provider: 'gemini', tier: 'fast' },
       { id: 'claude-sonnet-4.6', provider: 'anthropic', tier: 'balanced' },
@@ -160,7 +159,6 @@ describe('resolveModelTier', () => {
   });
 
   it('should return target as-is when model is an explicit string', () => {
-    const { resolveModelTier } = require('../../src/router/router.js');
     const availableModels = [
       { id: 'gemini-3.6-flash', provider: 'gemini', tier: 'fast' },
     ];
