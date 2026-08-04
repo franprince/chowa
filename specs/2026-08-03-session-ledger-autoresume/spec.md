@@ -1,6 +1,7 @@
 # Spec: Session-ledger auto-resume
 
-Status: **Draft**
+Status: **Approved** — 2026-08-04. All open questions resolved; see
+Resolved Questions below. Proceeding to Stage 2 (implementation plan).
 
 Supersedes: [`2026-08-03-manual-quota-resume`](../2026-08-03-manual-quota-resume/spec.md)
 Sibling: [`2026-08-02-quota-resume-orchestrator`](../2026-08-02-quota-resume-orchestrator/spec.md) (unaffected)
@@ -265,21 +266,38 @@ Confirmed directly against `claude` 2.1.220 and this host, not assumed:
       and exact `tmux`/scheduler argv construction.
 - [ ] `bun test`, `bun run check:imports`, `bun run build` clean.
 
-## Open Questions
+## Resolved Questions
 
 1. **Does `StopFailure` actually fire on a usage-limit cutoff, and does its
-   command's file write survive session teardown?** The whole design rests
-   on this. It must be verified before the implementation plan is approved.
-   If it does not fire, the fallback is a `SessionEnd` stamp plus
-   transcript inspection to classify the cause — strictly worse, and worth
-   knowing early.
-2. **Does the `StopFailure` payload identify the limit that blocked the
-   session** (`five_hour` vs. `seven_day`), or must the stamp correlate
-   against a `get_usage` probe at stamp time to find out?
-3. **Recurring schedule mechanism** — systemd user timer with
-   `Persistent=true`, versus the sweep re-arming a one-shot `at` job each
-   time it runs. The timer is more robust; the `at` approach reuses what the
-   superseded spec already verified.
-4. **Ledger concurrency** — two sessions ending simultaneously both
-   read-modify-write the same JSON file. Whether a lock file is warranted in
-   v1, or per-entry files sidestep it entirely.
+   command's file write survive session teardown?** Partially de-risked,
+   not fully closed, and deliberately not blocking on full closure: static
+   inspection of the shipped binary confirms the hook dispatch is `await`ed
+   with a real timeout budget (observed values from 1s–20s for comparable
+   hooks) — not fire-and-forget, so a fast ledger-write command has a
+   genuine window to complete. What's *not* provable without living through
+   a real cutoff: whether a genuine rate-limit death actually reaches this
+   code path with `error: "rate_limit"`. Decision: proceed to the
+   implementation plan on this evidence, verify for real during Stage 3
+   (the next natural cutoff, not an artificially forced one), and keep the
+   documented fallback (`SessionEnd` stamp + transcript classification) as
+   the contingency if it turns out not to fire reliably — the plan should
+   note this explicitly as a thing Stage 3 confirms, not assumes.
+2. **Does the `StopFailure` payload identify which window blocked the
+   session** (`five_hour` vs. `seven_day`)? No — the confirmed schema has
+   no structured field for it; `error` is the closed enum, `error_details`
+   is unstructured free text not safe to parse against. Resolved: the stamp
+   step correlates against a `get_usage` probe *at stamp time* (same probe
+   G5 already uses for `resets_at`) to determine which window is actually
+   implicated, rather than trusting anything in `error_details`.
+3. **Recurring schedule mechanism.** Resolved: a systemd user timer with
+   `Persistent=true` for the *sweep's own trigger* — the more robust choice
+   for something that must catch up after the machine was off, and
+   `systemd-run`/`systemd` are already confirmed present on this host. The
+   *resume action itself* keeps using `tmux` (already fully verified) —
+   each tool used for the job it's actually suited to, not one mechanism
+   stretched to cover both.
+4. **Ledger concurrency.** Resolved: a single JSON file with an atomic
+   write pattern (write to a temp file, then rename) is sufficient for v1 —
+   write frequency is inherently low (only on `SessionStart`/`StopFailure`/
+   sweep events, never a hot path), so per-entry file sharding would add
+   complexity the actual concurrency risk doesn't justify.
