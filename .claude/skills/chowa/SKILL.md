@@ -129,13 +129,20 @@ it saves. Delegate only when the mechanical work is large or repetitive
 enough (a multi-file rename sweep, a repo-wide formatting pass) that
 running it on a cheaper model is worth a subagent call.
 
-To delegate, use the `Agent` tool with `chowa-mechanical` as the subagent,
-and ask it to report back a structured summary of exactly what changed —
-not just "done" — so you don't need to re-read every touched file
-yourself. If the user has asked you to handle a specific step directly,
-that overrides delegation for that step only. If the subagent hits
-something needing judgment mid-task, expect it to stop and hand back
-rather than deciding on its own.
+To delegate, first resolve the target model — run
+`bun run src/cli.ts route --kind mechanical --complexity low` (the same
+profile `chowa commit`/`chowa pr` already use) and read `target.model` from
+its JSON output. Then invoke the `Agent` tool with `chowa-mechanical` as the
+subagent and that resolved value as an explicit `model:` override — this
+takes precedence over whatever the subagent definition's own frontmatter
+pins, so the actual model always reflects the live routing policy
+(`chowa.config.ts`) rather than a value hardcoded in the subagent file. Ask
+it to report back a structured summary of exactly what changed — not just
+"done" — so you don't need to re-read every touched file yourself. If the
+user has asked you to handle a specific step directly, that overrides
+delegation for that step only. If the subagent hits something needing
+judgment mid-task, expect it to stop and hand back rather than deciding on
+its own.
 
 ## Chōwa CLI Reference
 
