@@ -164,6 +164,10 @@ ask about it.
 | `bun run src/cli.ts route --kind <k> --complexity <c>` | Resolve task to model |
 | `bun run src/cli.ts pr --base <branch>` | Generate PR description |
 | `bun run src/cli.ts claude-code-bridge` | JSON-in/JSON-out bridge for tooling |
+| `bun run src/cli.ts abandon [--reason <text>]` | Stop tracking the current branch's session for auto-resume |
+| `bun run src/cli.ts ledger status` | List tracked sessions and their auto-resume state |
+| `bun run src/cli.ts ledger sweep` | Resume any sessions whose blocking quota window has reset |
+| `bun run src/cli.ts ledger install` | Install the systemd user timer that runs `ledger sweep` on a schedule (Linux only) |
 | `bun run check:imports` | Verify dependency boundaries |
 | `bun test` | Run full test suite |
 | `bun run build` | Compile TypeScript cleanly |

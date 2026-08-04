@@ -216,6 +216,10 @@ ask about it.
 | `chowa init` | Scaffold a `chowa.config.js` for this project |
 | `chowa always-on [on\|off]` | Apply (or stop applying) Chōwa's workflow to every project, regardless of per-project signals; no argument checks current status |
 | `chowa install --agent <harness>` | Install this skill for a harness without a plugin system (e.g. `gemini`) |
+| `chowa abandon [--reason <text>]` | Stop tracking the current branch's session for auto-resume |
+| `chowa ledger status` | List tracked sessions and their auto-resume state |
+| `chowa ledger sweep` | Resume any sessions whose blocking quota window has reset (what the installed timer calls) |
+| `chowa ledger install` | Install the systemd user timer that runs `ledger sweep` on a schedule (Linux only) |
 
 Chōwa reads its routing policy from `chowa.config.ts`, `chowa.config.js`, or
 `chowa.config.mjs` at the project root, falling back to a built-in default
