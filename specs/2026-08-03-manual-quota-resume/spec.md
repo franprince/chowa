@@ -1,6 +1,17 @@
 # Spec: Manual quota-resume scheduling (`chowa resume`)
 
-Status: **Draft**
+Status: **Superseded by
+[`2026-08-03-session-ledger-autoresume`](../2026-08-03-session-ledger-autoresume/spec.md)**
+
+> Superseded because this design requires the human to notice the limit and
+> schedule the resume themselves — the one moment they are least able to,
+> since the cutoff is abrupt and the terminal is already gone. The successor
+> keeps this spec's verified mechanics wholesale (interactive `tmux` resume,
+> `at`-based OS-level scheduling, `SessionStart` capture of `session_id`
+> from the hook payload, and the finding that a bare "continue" prompt
+> fails) and replaces only the trigger: a ledger stamped at cutoff and swept
+> when quota returns. Retained as the record of what was decided about the
+> interactive-resume approach and why it was chosen over headless resume.
 
 ## Problem Statement
 
