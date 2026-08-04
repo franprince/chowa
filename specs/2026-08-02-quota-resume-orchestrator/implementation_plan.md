@@ -1,6 +1,7 @@
 # Implementation Plan: Quota-aware pipeline orchestrator
 
-Status: **Draft** — awaiting explicit approval before Stage 3 (code).
+Status: **Dismissed** — 2026-08-04. Along with its spec — see that file's
+Status line for why. Never reached Stage 3.
 
 ## Overview
 

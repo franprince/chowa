@@ -1,7 +1,16 @@
 # Spec: Quota-aware task orchestrator for Claude Code / Antigravity sessions
 
-Status: **Approved** — 2026-08-03. All open questions resolved; see
-Resolved Questions below.
+Status: **Dismissed** — 2026-08-04. Chōwa stays a harness kit — a skill plus
+simple, directly-invoked tools — not a standalone wrapper process or daemon.
+Nothing in this spec carries forward: a lighter, human-in-the-loop sibling
+(`specs/2026-08-03-manual-quota-resume/`) was drafted and itself superseded
+by an automatic ledger/hook-based approach
+(`specs/2026-08-03-session-ledger-autoresume/`), but that successor is a
+simple `SessionStart`/`StopFailure` hook plus a periodic sweep — not this
+spec's full pipeline-driving daemon (task queue, approval-gated pipeline
+stages, IPC, desktop notifications). Retained as the record of what was
+considered and why it wasn't built, so the idea doesn't get silently
+reconsidered later without this context.
 
 ## Problem Statement
 
