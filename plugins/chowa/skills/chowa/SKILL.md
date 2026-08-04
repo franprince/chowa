@@ -192,6 +192,19 @@ step only. If the subagent hits something needing judgment mid-task, expect
 it to stop and hand back rather than deciding on its own.
 <!-- chowa:delegation:end -->
 
+<!-- chowa:autoresume:start -->
+### 9. Quota-Aware Session Auto-Resume
+
+Chōwa tracks every session's lifecycle automatically via `SessionStart`/
+`StopFailure` hooks — there is nothing for you to invoke. When a session
+ends specifically because of a rate limit, it's stamped in a local ledger
+(`~/.chowa/sessions.json`) with the window that blocked it and when that
+window resets; a periodic sweep then resumes eligible sessions once quota
+is back. This is transparent background bookkeeping — don't reference or
+hand-edit the ledger file, and don't mention it to the user unless they
+ask about it.
+<!-- chowa:autoresume:end -->
+
 ## Chōwa CLI Reference
 
 | Command | Description |
