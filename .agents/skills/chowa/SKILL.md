@@ -168,10 +168,6 @@ chowa route --kind <type> --complexity <level>
 chowa pr --base <branch>
 ```
 
-
-
-
-
 ## Chōwa CLI Reference
 
 | Command | Description |
