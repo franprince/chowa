@@ -149,12 +149,3 @@ rather than deciding on its own.
 | `bun run check:imports` | Verify dependency boundaries |
 | `bun test` | Run full test suite |
 | `bun run build` | Compile TypeScript cleanly |
-
-## Known Gap
-
-As of this writing, `chowa route`/`commit`/`pr` do **not** actually read
-`chowa.config.ts` — `loadPolicy()` in `src/cli.ts` returns a hardcoded policy
-and ignores `--config`. See
-`specs/2026-08-01-routing-config-wiring/` for the fix in progress. Until
-that lands, do not rely on editing `chowa.config.ts` to change routing
-behavior.
