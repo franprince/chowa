@@ -113,6 +113,13 @@ For all feature requests and non-trivial changes, follow this 3-stage lifecycle:
   directly. Never push or PR straight to `main`/`master` outside that flow.
 - Always ask the user if they want a PR opened, whenever creating a new
   branch and committing.
+- After opening a PR, check whether it's actually mergeable against its
+  base (`gh pr view <n> --json mergeable,mergeStateStatus`) — don't treat
+  "the PR exists" as "the PR is ready." A base branch that moved since you
+  branched (especially `develop` → `main` on a `release/*`/`hotfix/*` PR)
+  can leave it `CONFLICTING` with no error at creation time, and CI may
+  not even run until it's resolved. If so, merge the base branch into your
+  branch locally, resolve, push, and re-verify before calling the PR done.
 
 ### 3. Remote Update Checks
 
