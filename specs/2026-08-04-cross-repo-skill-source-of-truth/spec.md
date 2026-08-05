@@ -1,6 +1,7 @@
 # Spec: Cross-repo skill source of truth (marketplace → chowa)
 
-Status: **Draft** — awaiting explicit approval before Stage 2 (implementation plan).
+Status: **Approved** — 2026-08-05. Sync mechanism resolved (Option B); see
+Resolved Question below. Proceeding to Stage 2 (implementation plan).
 
 ## Problem Statement
 
@@ -67,10 +68,11 @@ rather than duplicated by hand.
   to skill markdown content specifically, not a general "chowa the CLI
   depends on a published chowa-skill package" mechanism.
 
-## Key Open Question: the sync mechanism
+## Resolved Questions
 
-This is the crux design decision and needs to be resolved before Stage 2,
-since it drives what "generated from" concretely means.
+### 1. The sync mechanism
+
+Resolved: **Option B**, approved 2026-08-05.
 
 **Option A — Git submodule.** Add `skills-marketplace` (or a narrower
 subtree) as a submodule in this repo, read the shared file from the
@@ -103,18 +105,67 @@ enforcement over prose discipline elsewhere (the push-guard hook exists
 for exactly this reason), so falling back to prose here would be a
 regression relative to how the rest of this repo is built.
 
-**Recommendation:** Option B. It avoids the submodule onboarding tax,
-keeps CI deterministic via the pin, and matches this repo's existing
-preference for mechanical checks over documented discipline — at the
-acknowledged cost of a new kind of dependency (network I/O in `check:skill`)
-that this spec should call out plainly rather than bury.
+**Why:** avoids the submodule onboarding tax, keeps CI deterministic via
+the pin, and matches this repo's existing preference for mechanical
+checks over documented discipline — at the acknowledged cost of a new
+kind of dependency (network I/O in `check:skill`) that this spec calls
+out plainly rather than buries.
+
+### 2. What "shared content" actually looks like, section by section
+
+A close read of both files (done while drafting the implementation plan)
+found that *every* shared section has at least one point where chowa and
+`chowa-skill` genuinely diverge — not just the two or three anticipated in
+the Edge Cases below:
+
+| Section | Shared | Diverges on |
+|---|---|---|
+| Step 0 detection | The "detect, don't impose" philosophy and 3-way structure | The opted-in signal list — chowa checks `chowa.config.*`/npm dependency; `chowa-skill` has neither |
+| Branching & PR workflow | Branch-flow rules, the mergeability-check paragraph | Remote-update-check mechanism — chowa: `chowa check-update` code block; `chowa-skill`: a `git fetch`/`git status` bullet |
+| Commit workflow | The clustering-by-judgment principle | Message generation — chowa delegates via `chowa commit` (a real LLM call); `chowa-skill` writes it inline, with its own explicit "no separate call here" caveat |
+| Quality verification | Nearly identical verbatim | — |
+| PR description generation | The closing-line convention | Body generation — chowa: `chowa pr` code block; `chowa-skill`: manual `git log`/`gh pr create` instructions |
+| Mechanical delegation | The delegation philosophy (only fully-specified work, ask for a structured summary, defer on ambiguity) | Target-model resolution — chowa: run `chowa route`, override explicitly; `chowa-skill`: use its own fixed heuristic table directly |
+
+This means a simple "one file, sparse insertion points" model undersells
+the real shape of the content. **Resolved:** the two skill files
+(`chowa`'s canonical copy and `chowa-skill`'s shipped copy) are *both*
+generated outputs of a third artifact — a template, living in
+`skills-marketplace`, marking every paragraph as one of three variants
+(`shared`, `chowa-only`, `chowa-skill-only`). `chowa-skill/SKILL.md` stops
+being hand-authored directly; it becomes `skills-marketplace`'s own
+generated file (strip `chowa-only`, keep `shared` + `chowa-skill-only`),
+mirroring the render step chowa gains for its own copy (strip
+`chowa-skill-only`, keep `shared` + `chowa-only`, then continue into
+chowa's existing invocation/delegation/autoresume region-swap logic for
+its portable Gemini/Antigravity copy exactly as today). This is a bigger
+scope than the spec originally sketched — `skills-marketplace` gains
+generation tooling of its own for the first time — but it's the only
+version of "one source of truth" that doesn't quietly contradict itself
+(a file can't simultaneously be raw template markup *and* the clean,
+directly-installable skill a marketplace user reads).
 
 ## Affected Interfaces
 
-- `scripts/sync-skill.ts` — gains a fetch-and-overlay step ahead of its
-  existing region-swap logic; `REGION_SWAPS` likely needs to become
-  "shared content + chowa overlay regions" rather than purely
-  "canonical → portable" swaps.
+- `franprince/skills-marketplace`'s new `templates/chowa-workflow.md` —
+  the actual source of truth, marked into `shared`/`chowa-only`/
+  `chowa-skill-only` variants.
+- `franprince/skills-marketplace`'s new generation script (e.g.
+  `scripts/generate-skill.mjs`) — renders `plugins/chowa-skill/skills/
+  chowa-skill/SKILL.md` from the template. `chowa-skill/SKILL.md` stops
+  being hand-edited directly; a hand edit there gets silently clobbered
+  on the next generation.
+- `franprince/skills-marketplace` gains CI (none exists today) running
+  its own generate-and-check step on PRs.
+- `scripts/sync-skill.ts` — gains a fetch-and-render step ahead of its
+  existing region-swap logic: fetch the pinned template, strip
+  `chowa-skill-only` variants, keep `shared` + `chowa-only`, splice the
+  result into chowa's existing document structure (frontmatter, Step 0's
+  chowa-specific signals, and the fully chowa-only whole sections —
+  Model Routing, Quota-Aware Session Auto-Resume, Claude Code Bridge, CLI
+  Reference — that live outside the shared template entirely). The
+  existing invocation/delegation/autoresume region-swap logic for the
+  portable copy runs on the result exactly as it does today.
 - `.github/workflows/ci.yml` — `check:skill`'s job needs network access
   (already implicit for `actions/checkout`, but this is a new outbound
   call to a different host) and a clear failure message distinguishing
@@ -122,12 +173,8 @@ that this spec should call out plainly rather than bury.
 - `plugins/chowa/skills/chowa/SKILL.md`, `.claude/skills/chowa/SKILL.md`,
   `.agents/skills/chowa/SKILL.md` — all three become at least partially
   generated rather than hand-edited; whichever sections come from the
-  shared source need to stop being edited by hand in this repo, or a hand
-  edit here will get silently clobbered on the next sync.
-- `franprince/skills-marketplace`'s `chowa-skill` — becomes something
-  edited with this repo in mind, not a one-off snapshot; may need its own
-  documentation note that it's now a dependency other projects sync
-  against, not just a standalone plugin.
+  shared template need to stop being edited by hand in this repo, or a
+  hand edit here will get silently clobbered on the next sync.
 
 ## Edge Cases
 
@@ -137,18 +184,16 @@ that this spec should call out plainly rather than bury.
   acceptable (explicit, deliberate versioning) or does it need its own
   staleness check (e.g., `check:skill` warns if the pin is more than N
   days behind the marketplace's current `main`)?
-- **The overlay mechanism needs to insert CLI-specific content *inside* a
-  section that's otherwise shared** (e.g., "PR Description Generation" is
-  shared prose plus a chowa-only `chowa pr --base <branch>` code block
-  inserted mid-section) — the existing marked-region convention
-  (`<!-- chowa:x:start/end -->`) was designed for "strip this whole
-  region," not "splice chowa-only content into a shared paragraph." This
-  may need a second marker type (an insertion point rather than a
-  replaceable region).
-- **`chowa-skill` itself has content chowa's overlay shouldn't duplicate**
-  (its own "What this skill intentionally does not do" section, written
-  from the pure-skill's point of view) — the overlay step needs to know
-  which parts of the shared file to skip, not just what to add.
+- ~~The overlay mechanism needs to insert CLI-specific content *inside* a
+  section that's otherwise shared.~~ **Resolved** by Resolved Question 2's
+  three-variant template model — every paragraph is tagged `shared`,
+  `chowa-only`, or `chowa-skill-only` at the source, so there's no
+  separate "insertion point" concept to design; it's the same variant
+  mechanism applied at finer granularity.
+- ~~`chowa-skill` itself has content chowa's overlay shouldn't
+  duplicate~~ (its "What this skill intentionally does not do" section).
+  **Resolved** the same way — that section is tagged `chowa-skill-only`
+  in the template, so chowa's render step never sees it.
 - **Network failure during a release build.** If Option B is chosen,
   what's the behavior when `plugins/chowa/dist/` needs rebuilding on a
   `release/*` branch and the fetch fails — hard failure (correct, but
