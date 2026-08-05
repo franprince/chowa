@@ -212,6 +212,10 @@ async function handleCommit(configPath?: string): Promise<void> {
   }
 }
 
+/** Closing line for every PR body this command generates — replaces the
+ *  default Claude Code attribution trailer, never sits alongside it. */
+export const PR_SIGNATURE = '調和 (Chōwa) — spec → plan → execute, verified before merge';
+
 async function handlePR(baseBranch: string, configPath?: string): Promise<void> {
   const { GitOps } = await import('./git/gitOps.js');
   const { generatePRDescription } = await import('./git/prDescription.js');
@@ -245,6 +249,7 @@ async function handlePR(baseBranch: string, configPath?: string): Promise<void> 
   if (pr.type === 'release' && pr.rolloutPlan) {
     console.log(`## Rollout / Rollback Plan\n${pr.rolloutPlan}\n`);
   }
+  console.log(`---\n${PR_SIGNATURE}`);
 }
 
 async function handleAntigravityBridge(configPath?: string): Promise<void> {
