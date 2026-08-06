@@ -374,6 +374,10 @@ If none of the three candidates exist, Chōwa falls back to a built-in default p
 - [ ] Pipeline actions (`init`/`plan`/`start`) in the Claude Code bridge, which today exposes only `call`/`route`/`commit`/`pr`/`models`
 - [ ] Sweep scheduling outside Linux — `chowa ledger install` writes systemd user units, so macOS/launchd is unserved
 
+### Under consideration (not committed)
+
+- **A CLI-less, pure-skill spin-off.** Everything Chōwa does today runs through the bundled `src/cli.ts` engine — the skill, the hooks, and the bridge all shell out to it. A leaner alternative would drive the same workflow (spec → plan → execute, atomic commits, PR generation) using only a harness's native tool calls (`Read`/`Edit`/`Bash`/`Agent`), no engine to bundle or version. This repo's CLI-backed architecture stays as-is either way; a pure-skill variant, if it happens, would live as its own separate project rather than replace this one.
+
 ## Development Workflow
 
 Chōwa develops itself (dogfooding) via its own skill conventions:
