@@ -81,7 +81,8 @@ that (a `chowa.config.js` works on any version). If neither `bun` nor
 
 ### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
 
-For all feature requests and non-trivial changes, follow this 3-stage lifecycle:
+For all feature requests and non-trivial changes, follow this 3-stage
+lifecycle:
 
 1. **Stage 1: Specification (`spec.md`)** — problem statement, goals,
    non-goals, input/output schemas, edge cases, and acceptance criteria.
@@ -96,9 +97,10 @@ For all feature requests and non-trivial changes, follow this 3-stage lifecycle:
    docs with no record of what was approved — that's how intent drifts
    across iterations.
 4. **Stage 3: Execution & Verification** — implement the approved plan
-   (code + tests), then verify with the project's own quality gates
-   (see §5). Always ask the user if they want a Pull Request opened after
-   committing on a new feature branch.
+   (code + tests), then verify with the project's own quality gates (see
+   the Code Quality & Build Verification section below). Always ask the
+   user if they want a Pull Request opened after committing on a new
+   feature branch.
 
 ### 2. Branching & PR Workflow
 
@@ -134,23 +136,26 @@ chowa check-update
 chowa commit
 ```
 
-Chōwa clusters the diff by file, which is a heuristic, not a verdict: if two
-reported clusters are one logical change (a doc and the index row pointing
-at it, a function and its test), commit them together. Splitting them would
-produce a commit that doesn't stand on its own. Commits must follow
-Conventional Commits: `type(scope): concise imperative description`.
+Chōwa clusters the diff by file, which is a heuristic, not a verdict: if
+two reported clusters are one logical change (a doc and the index row
+pointing at it, a function and its test), commit them together. Splitting
+them would produce a commit that doesn't stand on its own.
+Commits must follow Conventional Commits: `type(scope): concise imperative
+description`.
 
 - Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`
 - Scope: whatever the project uses (check recent `git log`, or an existing
-  `commitlint`/similar config); in Chōwa's own repo the scopes are `core`,
-  `adapters`, `router`, `git`, `cli`, `integrations`.
+  `commitlint`/similar config).
+In Chōwa's own repo the scopes are `core`, `adapters`, `router`, `git`,
+`cli`, `integrations`.
 
 ### 5. Code Quality & Build Verification
 
-Before committing, run the *project's own* test/lint/build scripts (its
-`package.json` `scripts` — typically something like `test`, `lint`,
-`build`). Chōwa's model routing and commit-splitting don't replace a
-project's own quality gates.
+Before committing, run the *project's own* test/lint/build scripts —
+typically something like `test`, `lint`, `build` in its `package.json`
+`scripts`, or whatever the project's own tooling is. This workflow's own
+conventions (model routing, commit-splitting, or their absence) don't
+replace a project's own quality gates.
 
 ### 6. Model Routing
 
@@ -167,40 +172,72 @@ chowa route --kind <type> --complexity <level>
 chowa pr --base <branch>
 ```
 
+Whether the body comes from `chowa pr` or you write it directly, close
+every PR with this line, on its own, after everything else:
+
+```
+調和 (Chōwa) — spec → plan → execute, verified before merge
+```
+
+Never the default Claude Code attribution trailer — this replaces it, it
+doesn't sit alongside it.
+
 <!-- chowa:delegation:start -->
 ### 8. Delegating Mechanical Sub-Tasks
 
 Not every step of a live pipeline needs the primary session's model. A
-sub-task qualifies for delegation only if, before delegating, you can state
-exactly what the correct output looks like (or exactly what mechanical rule
-to apply) — renames, formatting passes, boilerplate scaffolding, and the
-same shape of work `chowa commit`/`chowa pr` already delegate on your
-behalf (a rigid, checkable output generated from an already fully-specified
-input). If any part of "what should this become" is still an open design
-question, don't delegate — handle it inline.
+sub-task qualifies for delegation only if, before delegating, you can
+state exactly what the correct output looks like (or exactly what
+mechanical rule to apply) — renames, formatting passes, boilerplate
+scaffolding, and the same shape of work `chowa commit`/`chowa pr` already
+delegate on your behalf (a rigid, checkable output generated from an
+already fully-specified input). If any part of "what should this become"
+is still an open design question, don't delegate — handle it inline.
 
-Skip delegation for trivial one-line edits — the round-trip costs more than
-it saves. Delegate only when the mechanical work is large or repetitive
-enough (a multi-file rename sweep, a repo-wide formatting pass) that
-running it on a cheaper model is worth a subagent call.
+Skip delegation for trivial one-line edits — the round-trip costs more
+than it saves. Delegate only when the mechanical work is large or
+repetitive enough (a multi-file rename sweep, a repo-wide formatting pass)
+that running it on a cheaper model is worth a subagent call.
 
 To delegate, first resolve the target model — run `chowa route --kind
 mechanical --complexity low` (the same profile `chowa commit`/`chowa pr`
 already use) and read `target.model` from its JSON output. Then invoke the
 `Agent` tool with `chowa:chowa-mechanical` as the subagent and that
 resolved value as an explicit `model:` override — this takes precedence
-over whatever the subagent definition's own frontmatter pins, so the actual
-model always reflects the live routing policy (`chowa.config.ts`) rather
-than a value hardcoded in the subagent file. Ask it to report back a
-structured summary of exactly what changed — not just "done" — so you
-don't need to re-read every touched file yourself. If the user has asked
-you to handle a specific step directly, that overrides delegation for that
-step only. If the subagent hits something needing judgment mid-task, expect
-it to stop and hand back rather than deciding on its own.
+over whatever the subagent definition's own frontmatter pins, so the
+actual model always reflects the live routing policy (`chowa.config.ts`)
+rather than a value hardcoded in the subagent file.
+Ask it to report back a structured summary of exactly what changed — not
+just "done" — so you don't need to re-read every touched file yourself. If
+the user has asked you to handle a specific step directly, that overrides
+delegation for that step only. If the subagent hits something needing
+judgment mid-task, expect it to stop and hand back rather than deciding on
+its own.
 <!-- chowa:delegation:end -->
 
+<!-- chowa:sdd:start -->
+### 9. Executing Plans via Subagent-Driven Development
+
+For an approved implementation plan with several mostly-independent tasks,
+prefer executing Stage 3 through the `superpowers:subagent-driven-development`
+skill, when the `superpowers` plugin is installed, rather than implementing
+every task inline in this session: a fresh implementer subagent per task, a
+review gate after each, and one whole-branch review at the end. Load it
+explicitly (`Skill` tool, `superpowers:subagent-driven-development`) once
+the plan is approved and you're ready to begin Stage 3.
+
+This isn't a fit for every plan. Skip it — implement inline as before —
+when tasks are tightly coupled (that skill's own guidance routes tightly
+coupled work back to manual execution), the plan is small enough that
+per-task subagent dispatch overhead isn't worth it, or the `superpowers`
+plugin isn't installed. When it does fit, that skill's own ledger and
+review-loop process takes over from here; this skill's spec → plan →
+execute pipeline stays the outer frame — the plan it executes is still the
+one written and approved under §1.
+<!-- chowa:sdd:end -->
+
 <!-- chowa:autoresume:start -->
-### 9. Quota-Aware Session Auto-Resume
+### 10. Quota-Aware Session Auto-Resume
 
 Chōwa tracks every session's lifecycle automatically via `SessionStart`/
 `StopFailure` hooks — there is nothing for you to invoke. When a session
