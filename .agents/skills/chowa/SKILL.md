@@ -82,7 +82,8 @@ guessing.
 
 ### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
 
-For all feature requests and non-trivial changes, follow this 3-stage lifecycle:
+For all feature requests and non-trivial changes, follow this 3-stage
+lifecycle:
 
 1. **Stage 1: Specification (`spec.md`)** — problem statement, goals,
    non-goals, input/output schemas, edge cases, and acceptance criteria.
@@ -97,9 +98,10 @@ For all feature requests and non-trivial changes, follow this 3-stage lifecycle:
    docs with no record of what was approved — that's how intent drifts
    across iterations.
 4. **Stage 3: Execution & Verification** — implement the approved plan
-   (code + tests), then verify with the project's own quality gates
-   (see §5). Always ask the user if they want a Pull Request opened after
-   committing on a new feature branch.
+   (code + tests), then verify with the project's own quality gates (see
+   the Code Quality & Build Verification section below). Always ask the
+   user if they want a Pull Request opened after committing on a new
+   feature branch.
 
 ### 2. Branching & PR Workflow
 
@@ -135,23 +137,26 @@ chowa check-update
 chowa commit
 ```
 
-Chōwa clusters the diff by file, which is a heuristic, not a verdict: if two
-reported clusters are one logical change (a doc and the index row pointing
-at it, a function and its test), commit them together. Splitting them would
-produce a commit that doesn't stand on its own. Commits must follow
-Conventional Commits: `type(scope): concise imperative description`.
+Chōwa clusters the diff by file, which is a heuristic, not a verdict: if
+two reported clusters are one logical change (a doc and the index row
+pointing at it, a function and its test), commit them together. Splitting
+them would produce a commit that doesn't stand on its own.
+Commits must follow Conventional Commits: `type(scope): concise imperative
+description`.
 
 - Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`
 - Scope: whatever the project uses (check recent `git log`, or an existing
-  `commitlint`/similar config); in Chōwa's own repo the scopes are `core`,
-  `adapters`, `router`, `git`, `cli`, `integrations`.
+  `commitlint`/similar config).
+In Chōwa's own repo the scopes are `core`, `adapters`, `router`, `git`,
+`cli`, `integrations`.
 
 ### 5. Code Quality & Build Verification
 
-Before committing, run the *project's own* test/lint/build scripts (its
-`package.json` `scripts` — typically something like `test`, `lint`,
-`build`). Chōwa's model routing and commit-splitting don't replace a
-project's own quality gates.
+Before committing, run the *project's own* test/lint/build scripts —
+typically something like `test`, `lint`, `build` in its `package.json`
+`scripts`, or whatever the project's own tooling is. This workflow's own
+conventions (model routing, commit-splitting, or their absence) don't
+replace a project's own quality gates.
 
 ### 6. Model Routing
 
@@ -168,8 +173,8 @@ chowa route --kind <type> --complexity <level>
 chowa pr --base <branch>
 ```
 
-Whether the body comes from `chowa pr` or you write it directly, close every
-PR with this line, on its own, after everything else:
+Whether the body comes from `chowa pr` or you write it directly, close
+every PR with this line, on its own, after everything else:
 
 ```
 調和 (Chōwa) — spec → plan → execute, verified before merge
