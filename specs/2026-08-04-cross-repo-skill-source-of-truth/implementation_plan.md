@@ -11,20 +11,20 @@ already working.
 
 | Phase | Delivers | Repo |
 |---|---|---|
-| 1 | The template + `skills-marketplace`'s own generation tooling | `skills-marketplace` |
+| 1 | The template + `chowa-skill`'s own generation tooling | `chowa-skill` |
 | 2 | chowa's fetch + render pipeline, wired into `sync-skill.ts` | `chowa` |
 | 3 | CI hardening (clear failure messages, pin-bump process) | Both |
 | 4 | Docs recording the new relationship | Both |
 
-**Recommendation:** land Phase 1 as its own PR into `skills-marketplace`
+**Recommendation:** land Phase 1 as its own PR into `chowa-skill`
 first — it's independently useful (that repo gets real generated-file
 discipline for the first time) and gives Phase 2 something concrete to
 point at. Phase 2 is the biggest single unit of new code in `chowa`;
 consider its own PR too, separate from Phase 3/4's hardening and docs.
 
-## Phase 1: Template + `skills-marketplace` Generation Tooling
+## Phase 1: Template + `chowa-skill` Generation Tooling
 
-**File: `templates/chowa-workflow.md`** (new, in `skills-marketplace`)
+**File: `templates/chowa-workflow.md`** (new, in `chowa-skill`)
 
 Migrate `chowa-skill/SKILL.md`'s current content into template form. Every
 paragraph/block gets exactly one tag:
@@ -58,11 +58,11 @@ and the "Quick Reference" table — these are `chowa-skill`-specific in a
 way that doesn't need round-tripping through variant tags, since nothing
 in chowa's render step needs to know they exist.
 
-**File: `scripts/generate-skill.mjs`** (new, in `skills-marketplace`)
+**File: `scripts/generate-skill.mjs`** (new, in `chowa-skill`)
 
 ```
 Usage:
-  node scripts/generate-skill.mjs          # write plugins/chowa-skill/skills/chowa-skill/SKILL.md
+  node scripts/generate-skill.mjs          # write skills/chowa-skill/SKILL.md
   node scripts/generate-skill.mjs --check  # exit 1 if it would change
 ```
 
@@ -72,7 +72,7 @@ the frontmatter and the two chowa-skill-only sections noted above,
 writes the result. Mirrors `chowa`'s existing `scripts/sync-skill.ts`
 closely enough that anyone familiar with one recognizes the other.
 
-**File: `.github/workflows/ci.yml`** (new, in `skills-marketplace` — no CI
+**File: `.github/workflows/ci.yml`** (new, in `chowa-skill` — no CI
 exists there today)
 
 A minimal workflow: install deps if any are added, run
@@ -80,11 +80,11 @@ A minimal workflow: install deps if any are added, run
 this repo doesn't need `chowa`'s full quality-gate suite.
 
 **Verification:** `node scripts/generate-skill.mjs`, diff the result
-against the currently-committed `chowa-skill/SKILL.md` — expect only the
-closing-line reconciliation as a real content change; everything else
-should be a lossless round-trip. Manually confirm the plugin still
-installs and reads correctly (`/plugin install chowa-skill@skills-
-marketplace` in a scratch project, or at minimum a visual read-through).
+against the currently-committed `skills/chowa-skill/SKILL.md` — expect
+only the closing-line reconciliation as a real content change; everything
+else should be a lossless round-trip. Manually confirm the plugin still
+installs and reads correctly (`/plugin install chowa-skill@chowa-skill`
+in a scratch project, or at minimum a visual read-through).
 
 ## Phase 2: Chowa's Fetch + Render Pipeline
 
@@ -105,7 +105,7 @@ export async function fetchSharedTemplate(options?: FetchTemplateOptions): Promi
 
 `SHARED_TEMPLATE_SHA` lives as an exported constant in this file with a
 comment explaining what it pins and how to bump it (point at the
-`skills-marketplace` commit that changed the template, re-run
+`chowa-skill` commit that changed the template, re-run
 `bun run sync:skill`, review the diff, commit both the pin bump and the
 regenerated files together).
 
@@ -165,7 +165,7 @@ content — expect no unintended changes.
   network-flakiness false failures) before calling this phase done, per
   the spec's acceptance criteria — this is the one criterion that can't
   be verified in a single run.
-- `skills-marketplace`'s new CI (Phase 1) gets the same treatment if it
+- `chowa-skill`'s new CI (Phase 1) gets the same treatment if it
   ever needs it, though it has no network dependency of its own.
 
 ## Phase 4: Docs
@@ -173,10 +173,10 @@ content — expect no unintended changes.
 - `chowa`'s self-hosted `.claude/skills/chowa/SKILL.md`: a short note (in
   the existing "this file is not the distributed skill" callout, or
   nearby) that the canonical skill itself is now partially generated from
-  `skills-marketplace`, and where the pin lives.
+  `chowa-skill`, and where the pin lives.
 - `chowa`'s README: mention the relationship in "How the plugin is
   distributed."
-- `skills-marketplace`'s README: note that `templates/chowa-workflow.md`
+- `chowa-skill`'s README: note that `templates/chowa-workflow.md`
   is a dependency `chowa` syncs against now — a breaking change there
   breaks `chowa`'s next sync, not just this repo.
 
@@ -184,7 +184,7 @@ content — expect no unintended changes.
 
 | Area | New tests |
 |---|---|
-| `skills-marketplace/scripts/generate-skill.mjs` | Round-trip fixture template → generated file matches expected output |
+| `chowa-skill/scripts/generate-skill.mjs` | Round-trip fixture template → generated file matches expected output |
 | `renderSharedVariant.ts` | Keep-set combinations, unmatched markers, unrecognized variant name |
 | `fetchSharedTemplate.ts` | Mocked fetch: success, network error, non-200 |
 | `sync-skill.ts` (extended) | End-to-end: fixture template + chowa's local overlay content → expected canonical/portable output |
@@ -192,7 +192,7 @@ content — expect no unintended changes.
 ## Verification Checklist (Stage 3 exit criteria, per phase)
 
 - [ ] Phase 1: `node scripts/generate-skill.mjs --check` clean; diff
-      against pre-migration `chowa-skill/SKILL.md` shows only the
+      against pre-migration `skills/chowa-skill/SKILL.md` shows only the
       closing-line reconciliation as real content change.
 - [ ] Phase 2: `bun test` covers `renderSharedVariant`/
       `fetchSharedTemplate` in isolation, no real network calls; the
@@ -206,6 +206,6 @@ content — expect no unintended changes.
 
 ## Rollout
 
-Phase 1 first, as its own PR into `skills-marketplace`. Once merged, pin
+Phase 1 first, as its own PR into `chowa-skill`. Once merged, pin
 its commit SHA and start Phase 2 on a new `chowa` branch. Ask before
 opening each phase's PR, same pattern as `session-ledger-autoresume`.

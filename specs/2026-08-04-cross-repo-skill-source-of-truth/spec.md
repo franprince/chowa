@@ -1,16 +1,27 @@
-# Spec: Cross-repo skill source of truth (marketplace → chowa)
+# Spec: Cross-repo skill source of truth (chowa-skill → chowa)
 
 Status: **Approved** — 2026-08-05. Sync mechanism resolved (Option B); see
 Resolved Question below. Proceeding to Stage 2 (implementation plan).
 
+> **2026-08-05 update:** `chowa-skill` moved out of
+> `franprince/skills-marketplace`'s `plugins/chowa-skill/` into its own
+> dedicated repo, `franprince/chowa-skill` (`skills-marketplace` now just
+> references it externally via a `github` source). Every reference below
+> to `skills-marketplace` as the target of this spec's sync mechanism
+> means `franprince/chowa-skill` — its own repo was always the more
+> natural home for a "source of truth" than a shared catalog repo, and
+> this move happened for independent reasons (skills-marketplace is a
+> catalog, not a home for plugin content) shortly after this spec was
+> approved, before Stage 3 began.
+
 ## Problem Statement
 
-`franprince/skills-marketplace`'s `chowa-skill` plugin was hand-adapted from
-this repo's own canonical skill (`plugins/chowa/skills/chowa/SKILL.md`):
-same spec → plan → execute pipeline, branching rules, commit conventions,
-PR-mergeability check — with every `chowa <command>` replaced by native
-tool-call instructions, and CLI-only capabilities (live model routing,
-quota-aware session auto-resume) explicitly scoped out.
+`franprince/chowa-skill` was hand-adapted from this repo's own canonical
+skill (`plugins/chowa/skills/chowa/SKILL.md`): same spec → plan → execute
+pipeline, branching rules, commit conventions, PR-mergeability check — with
+every `chowa <command>` replaced by native tool-call instructions, and
+CLI-only capabilities (live model routing, quota-aware session auto-resume)
+explicitly scoped out.
 
 That adaptation was a one-time copy, not a standing relationship — and it
 already drifted within the same session it was created in. Right after
@@ -23,19 +34,18 @@ to the other, with no mechanism enforcing it and no visibility into when it
 falls out of sync.
 
 The user has decided to resolve this by inverting the relationship:
-`skills-marketplace`'s `chowa-skill` becomes the canonical source for
-*shared* workflow content — the parts that apply regardless of whether a
-CLI/bundled engine exists underneath. This repo's three skill files should
-be generated from it, with chowa's own CLI-specific material (the
-`chowa <command>` invocation layer, live model routing via `chowa route`,
-quota-aware session auto-resume, the Claude Code Bridge) layered on top
-rather than duplicated by hand.
+`chowa-skill` becomes the canonical source for *shared* workflow content —
+the parts that apply regardless of whether a CLI/bundled engine exists
+underneath. This repo's three skill files should be generated from it, with
+chowa's own CLI-specific material (the `chowa <command>` invocation layer,
+live model routing via `chowa route`, quota-aware session auto-resume, the
+Claude Code Bridge) layered on top rather than duplicated by hand.
 
 ## Goals
 
-- **G1.** Designate `skills-marketplace/plugins/chowa-skill/skills/chowa-skill/SKILL.md`
-  as the single authored copy of every workflow rule shared between the two
-  projects (spec → plan → execute pipeline, branching/PR workflow including
+- **G1.** Designate `chowa-skill/skills/chowa-skill/SKILL.md` (in its own
+  repo, `franprince/chowa-skill`) as the single authored copy of every
+  workflow rule shared between the two projects (spec → plan → execute pipeline, branching/PR workflow including
   the mergeability check and the closing-line sign-off, commit conventions,
   code quality verification, delegation philosophy).
 - **G2.** This repo's canonical skill (`plugins/chowa/skills/chowa/SKILL.md`)
@@ -74,19 +84,21 @@ rather than duplicated by hand.
 
 Resolved: **Option B**, approved 2026-08-05.
 
-**Option A — Git submodule.** Add `skills-marketplace` (or a narrower
-subtree) as a submodule in this repo, read the shared file from the
-checked-out path. Fully offline once checked out; pinned to an exact
-commit by construction, so drift can't happen silently. Cost: submodules
-are a well-known contributor-experience papercut (`--recurse-submodules`
-or a follow-up `git submodule update --init` is easy to forget), and every
-shared-content change now requires a second commit in *this* repo (the
-submodule pointer bump) beyond the one in `skills-marketplace`.
+**Option A — Git submodule.** Add `chowa-skill` (its own repo) as a
+submodule in this repo, read the shared file from the checked-out path.
+Fully offline once checked out; pinned to an exact commit by construction,
+so drift can't happen silently. Cost: submodules are a well-known
+contributor-experience papercut (`--recurse-submodules` or a follow-up
+`git submodule update --init` is easy to forget), and every shared-content
+change now requires a second commit in *this* repo (the submodule pointer
+bump) beyond the one in `chowa-skill`.
 
 **Option B — Fetch at sync time, pinned to a commit SHA.** `sync-skill.ts`
-fetches the shared file from
-`https://raw.githubusercontent.com/franprince/skills-marketplace/<pinned-sha>/plugins/chowa-skill/skills/chowa-skill/SKILL.md`,
-applies chowa's overlay on top, writes the local files as it does today.
+fetches the shared template from
+`https://raw.githubusercontent.com/franprince/chowa-skill/<pinned-sha>/templates/chowa-workflow.md`
+(see Resolved Question 2 below for why it's a template, not the SKILL.md
+directly), applies chowa's overlay on top, writes the local files as it
+does today.
 Pinning to a SHA (not `main`) keeps CI deterministic — an unrelated
 marketplace commit landing mid-PR can't flip this repo's `check:skill`
 result. Bumping the pin is a one-line constant change. Cost: introduces a
@@ -131,32 +143,31 @@ This means a simple "one file, sparse insertion points" model undersells
 the real shape of the content. **Resolved:** the two skill files
 (`chowa`'s canonical copy and `chowa-skill`'s shipped copy) are *both*
 generated outputs of a third artifact — a template, living in
-`skills-marketplace`, marking every paragraph as one of three variants
-(`shared`, `chowa-only`, `chowa-skill-only`). `chowa-skill/SKILL.md` stops
-being hand-authored directly; it becomes `skills-marketplace`'s own
-generated file (strip `chowa-only`, keep `shared` + `chowa-skill-only`),
-mirroring the render step chowa gains for its own copy (strip
-`chowa-skill-only`, keep `shared` + `chowa-only`, then continue into
-chowa's existing invocation/delegation/autoresume region-swap logic for
-its portable Gemini/Antigravity copy exactly as today). This is a bigger
-scope than the spec originally sketched — `skills-marketplace` gains
-generation tooling of its own for the first time — but it's the only
-version of "one source of truth" that doesn't quietly contradict itself
-(a file can't simultaneously be raw template markup *and* the clean,
-directly-installable skill a marketplace user reads).
+`chowa-skill`'s own repo, marking every paragraph as one of three variants
+(`shared`, `chowa-only`, `chowa-skill-only`). `chowa-skill/skills/
+chowa-skill/SKILL.md` stops being hand-authored directly; it becomes
+`chowa-skill`'s own generated file (strip `chowa-only`, keep `shared` +
+`chowa-skill-only`), mirroring the render step chowa gains for its own
+copy (strip `chowa-skill-only`, keep `shared` + `chowa-only`, then
+continue into chowa's existing invocation/delegation/autoresume
+region-swap logic for its portable Gemini/Antigravity copy exactly as
+today). This is a bigger scope than the spec originally sketched —
+`chowa-skill` gains generation tooling of its own for the first time —
+but it's the only version of "one source of truth" that doesn't quietly
+contradict itself (a file can't simultaneously be raw template markup
+*and* the clean, directly-installable skill a marketplace user reads).
 
 ## Affected Interfaces
 
-- `franprince/skills-marketplace`'s new `templates/chowa-workflow.md` —
-  the actual source of truth, marked into `shared`/`chowa-only`/
+- `franprince/chowa-skill`'s new `templates/chowa-workflow.md` — the
+  actual source of truth, marked into `shared`/`chowa-only`/
   `chowa-skill-only` variants.
-- `franprince/skills-marketplace`'s new generation script (e.g.
-  `scripts/generate-skill.mjs`) — renders `plugins/chowa-skill/skills/
-  chowa-skill/SKILL.md` from the template. `chowa-skill/SKILL.md` stops
-  being hand-edited directly; a hand edit there gets silently clobbered
-  on the next generation.
-- `franprince/skills-marketplace` gains CI (none exists today) running
-  its own generate-and-check step on PRs.
+- `franprince/chowa-skill`'s new generation script (e.g.
+  `scripts/generate-skill.mjs`) — renders `skills/chowa-skill/SKILL.md`
+  from the template. That file stops being hand-edited directly; a hand
+  edit there gets silently clobbered on the next generation.
+- `franprince/chowa-skill` gains CI (none exists today) running its own
+  generate-and-check step on PRs.
 - `scripts/sync-skill.ts` — gains a fetch-and-render step ahead of its
   existing region-swap logic: fetch the pinned template, strip
   `chowa-skill-only` variants, keep `shared` + `chowa-only`, splice the
@@ -178,8 +189,8 @@ directly-installable skill a marketplace user reads).
 
 ## Edge Cases
 
-- **A shared-content edit lands in `skills-marketplace` with no
-  corresponding pin bump here.** This repo's generated skill silently
+- **A shared-content edit lands in `chowa-skill` with no corresponding
+  pin bump here.** This repo's generated skill silently
   keeps using the old content until the pin is bumped — is that
   acceptable (explicit, deliberate versioning) or does it need its own
   staleness check (e.g., `check:skill` warns if the pin is more than N
@@ -204,7 +215,7 @@ directly-installable skill a marketplace user reads).
 
 - [ ] Every rule currently duplicated by hand across `chowa`'s three skill
       files and `chowa-skill` exists in exactly one authored place
-      (`skills-marketplace`), not three.
+      (`franprince/chowa-skill`'s template), not three.
 - [ ] The already-diverged PR closing-line convention is reconciled:
       `chowa-skill` gains it (from the shared source), and chowa's own
       copies keep it without a second hand-authored copy of the prose.
