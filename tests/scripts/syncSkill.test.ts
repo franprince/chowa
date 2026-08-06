@@ -1,7 +1,70 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-import { toPortable, CANONICAL_SKILL, PORTABLE_SKILL } from '../../scripts/sync-skill.js';
+import {
+  toPortable,
+  buildCanonical,
+  buildSelfHosted,
+  generateAll,
+  CANONICAL_SKILL,
+  SELF_HOSTED_SKILL,
+  PORTABLE_SKILL,
+} from '../../scripts/sync-skill.js';
+import { extractSections } from '../../scripts/renderSharedVariant.js';
+
+/**
+ * A minimal fixture covering every section title chowa's skeletons pull
+ * from the shared template, tagged like the real
+ * `templates/chowa-workflow.md` — small enough to read at a glance, but
+ * enough to exercise the real splice path without a network call.
+ */
+const FIXTURE_TEMPLATE = [
+  '<!-- variant:shared -->',
+  '## Workflow Rules',
+  '<!-- variant:end -->',
+  '<!-- variant:shared -->',
+  '### Specification-Driven Pipeline (Spec → Plan → Execute)',
+  '',
+  'spec pipeline body',
+  '<!-- variant:end -->',
+  '<!-- variant:shared -->',
+  '### Branching & PR Workflow',
+  '',
+  'branching body',
+  '<!-- variant:end -->',
+  '<!-- variant:chowa-only -->',
+  '### Commit Workflow & Messages',
+  '',
+  '```bash',
+  'chowa commit',
+  '```',
+  '<!-- variant:end -->',
+  '<!-- variant:shared -->',
+  '### Code Quality & Build Verification',
+  '',
+  'quality body',
+  '<!-- variant:end -->',
+  '<!-- variant:chowa-only -->',
+  '### PR Description Generation',
+  '',
+  '```bash',
+  'chowa pr --base <branch>',
+  '```',
+  '<!-- variant:end -->',
+  '<!-- variant:chowa-only -->',
+  '### Delegating Mechanical Sub-Tasks',
+  '',
+  'run `chowa route --kind',
+  'mechanical --complexity low` (the same',
+  'profile `chowa commit`/`chowa pr`',
+  'already use) then `chowa:chowa-mechanical`.',
+  '<!-- variant:end -->',
+  '<!-- variant:chowa-skill-only -->',
+  '### Delegation Guidance',
+  '',
+  'dropped for chowa entirely',
+  '<!-- variant:end -->',
+].join('\n');
 
 describe('sync-skill', () => {
   describe('toPortable', () => {
@@ -264,5 +327,76 @@ describe('sync-skill', () => {
     const expected = toPortable(readFileSync(CANONICAL_SKILL, 'utf-8'));
 
     expect(readFileSync(PORTABLE_SKILL, 'utf-8')).toBe(expected);
+  });
+
+  describe('buildCanonical / buildSelfHosted', () => {
+    const sections = extractSections(
+      // Fixture is written already keeping shared+chowa-only (no
+      // chowa-skill-only content to strip), so this mirrors what
+      // renderVariant(template, ['shared', 'chowa-only']) would return.
+      FIXTURE_TEMPLATE.replace(
+        /<!-- variant:chowa-skill-only -->[\s\S]*?<!-- variant:end -->\n?/g,
+        '',
+      ).replace(/<!-- variant:(?:shared|chowa-only) -->\n?([\s\S]*?)<!-- variant:end -->\n?/g, '$1'),
+    );
+
+    it('splices rendered sections into the canonical skeleton', () => {
+      const canonical = buildCanonical(sections);
+
+      expect(canonical).toContain('spec pipeline body');
+      expect(canonical).toContain('branching body');
+      expect(canonical).toContain('chowa commit');
+      expect(canonical).not.toContain('dropped for chowa entirely');
+      // chowa-local content, never part of the template:
+      expect(canonical).toContain('### 3. Remote Update Checks');
+      expect(canonical).toContain('### 6. Model Routing');
+      expect(canonical).toContain('Quota-Aware Session Auto-Resume');
+    });
+
+    it('rewrites self-hosted invocations to run from source, not the plugin', () => {
+      const selfHosted = buildSelfHosted(sections);
+
+      expect(selfHosted).toContain('bun run src/cli.ts commit');
+      expect(selfHosted).not.toMatch(/```bash\nchowa commit\n```/);
+      expect(selfHosted).toContain('bun run src/cli.ts pr --base <branch>');
+      expect(selfHosted).toContain('bun run src/cli.ts route --kind mechanical --complexity low');
+      expect(selfHosted).toContain('`chowa-mechanical`');
+      expect(selfHosted).not.toContain('chowa:chowa-mechanical');
+      // the self-hosted-only release/main CONFLICTING note survives:
+      expect(selfHosted).toContain('routinely come back');
+    });
+
+    it('throws when the shared render is missing a section chowa expects', () => {
+      const incomplete = new Map(sections);
+      incomplete.delete('Commit Workflow & Messages');
+
+      expect(() => buildCanonical(incomplete)).toThrow(/missing expected section/);
+    });
+  });
+
+  describe('generateAll', () => {
+    it('fetches, renders, and splices into all three skill files without touching the network', async () => {
+      const fetchTemplate = async () => FIXTURE_TEMPLATE;
+
+      const { canonical, selfHosted, portable } = await generateAll(fetchTemplate);
+
+      expect(canonical).toContain('spec pipeline body');
+      expect(selfHosted).toContain('bun run src/cli.ts commit');
+      // portable drops the whole delegation region (Claude-Code-only):
+      expect(portable).not.toContain('Delegating Mechanical Sub-Tasks');
+      expect(portable).not.toContain('chowa-mechanical');
+    });
+
+    it('propagates a fetch failure clearly rather than generating partial output', async () => {
+      const fetchTemplate = async () => {
+        throw new Error('network error: boom');
+      };
+
+      await expect(generateAll(fetchTemplate)).rejects.toThrow(/boom/);
+    });
+  });
+
+  it('SELF_HOSTED_SKILL points at the self-hosted skill path', () => {
+    expect(SELF_HOSTED_SKILL).toMatch(/\.claude\/skills\/chowa\/SKILL\.md$/);
   });
 });

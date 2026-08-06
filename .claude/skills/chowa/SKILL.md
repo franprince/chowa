@@ -15,13 +15,21 @@ This is the Claude Code variant of `.agents/skills/chowa/SKILL.md`, wired up
 through the `ClaudeCodeBridge` (`src/integrations/claude-code/bridge.ts`) and
 the `chowa claude-code-bridge` CLI command.
 
-> **This file is not the distributed skill.** It is project-local to Chōwa's
-> own source and governs work in *this* repository only, which is why it can
-> assume self-repo mode throughout. The skill users install lives at
-> `plugins/chowa/skills/chowa/SKILL.md` and is the canonical one;
-> `.agents/skills/chowa/SKILL.md` is generated from it by
-> `bun run sync:skill`. Workflow changes meant for users belong in the
-> canonical file, not here.
+> **This file is not the distributed skill, and it's generated too.** It is
+> project-local to Chōwa's own source and governs work in *this*
+> repository only, which is why it can assume self-repo mode throughout.
+> The skill users install lives at `plugins/chowa/skills/chowa/SKILL.md`
+> and is the canonical one; `.agents/skills/chowa/SKILL.md` is generated
+> from it. Both this file and the canonical one pull their shared workflow
+> sections (spec pipeline, branching, commits, quality, delegation, PR
+> description) from `franprince/chowa-skill`'s
+> `templates/chowa-workflow.md`, pinned to a commit SHA in
+> `scripts/fetchSharedTemplate.ts`. Running `bun run sync:skill`
+> regenerates all three files from that pin plus chowa-local overlay
+> content. Workflow changes meant for users go in chowa-skill's template
+> if they're shared, or directly in this file's skeleton
+> (`scripts/sync-skill.ts`) if they're chowa-only local content — never
+> by hand-editing the generated markdown files themselves.
 
 ## Workflow Rules
 
@@ -29,48 +37,56 @@ When making changes to this codebase, **always follow these conventions**:
 
 ### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
 
-For all feature requests and non-trivial changes, always follow this 3-stage lifecycle:
+For all feature requests and non-trivial changes, follow this 3-stage
+lifecycle:
 
-1. **Stage 1: Specification (`spec.md`)** — problem statement, goals, non-goals,
-   affected interfaces, edge cases, acceptance criteria. Get explicit user
-   approval before Stage 2.
+1. **Stage 1: Specification (`spec.md`)** — problem statement, goals,
+   non-goals, input/output schemas, edge cases, and acceptance criteria.
+   Get explicit user approval before Stage 2.
 2. **Stage 2: Implementation Plan (`implementation_plan.md`)** — files to
-   modify/create, component boundaries, test plan. Get explicit user approval
-   before writing code.
-3. **Persistence** — write both files to `specs/<YYYY-MM-DD>-<slug>/`, never
-   as loose root-level files, and add a row to `specs/INDEX.md`. Root-level
+   modify/create, component boundaries, test plan. Get explicit user
+   approval before writing code.
+3. **Persistence** — write both files to `specs/<YYYY-MM-DD>-<slug>/`,
+   never as loose root-level files, and add a row to `specs/INDEX.md`
+   (create that layout if the project doesn't have one yet). Root-level
    `spec.md`/`implementation_plan.md` get overwritten by the next feature's
    docs with no record of what was approved — that's how intent drifts
-   across iterations. See `specs/INDEX.md` for the exact convention and
-   status values.
-3. **Stage 3: Execution & Verification** — implement the approved plan
-   (code + tests), then verify with `bun test`, `bun run check:imports`, and
-   `bun run build`. Ask the user before opening a PR.
+   across iterations.
+4. **Stage 3: Execution & Verification** — implement the approved plan
+   (code + tests), then verify with the project's own quality gates (see
+   the Code Quality & Build Verification section below). Always ask the
+   user if they want a Pull Request opened after committing on a new
+   feature branch.
 
 ### 2. Branching & PR Workflow
 
 - Always create a new branch for features/fixes/tasks — never work or push
   directly on `main` or `master`.
-- **Branch flow** (unless the user explicitly says otherwise):
-  - `fix/*`, `feat/*`, `docs/*`, `chore/*` etc. branch from `develop`, PR
-    **against `develop`**.
-  - `release/*` and `hotfix/*` branch from `develop` (a `hotfix/*` may branch
-    from `main` when patching a live incident) and PR **from there to
-    `main`**.
-  - Never PR or push directly to `main`/`master` outside of a `release/*` or
-    `hotfix/*` branch.
-- Always create a PR against the target base branch; ask the user first.
-- After opening a PR, check `gh pr view <n> --json mergeable,mergeStateStatus`
-  — don't treat "the PR exists" as "the PR is ready." **`release/*` →
-  `main` PRs in this repo routinely come back `CONFLICTING`**: `develop`
-  never carries `plugins/chowa/dist/` (see the CI `no-bundle-off-main`
-  job), so each release branch's own version bump and freshly-built bundle
-  collide with whatever `main` already has from the *previous* release —
-  every release branch from v0.2.1 through v0.5.0 needed this same fixup.
-  Expect it, don't debug it as a surprise: `git merge origin/main`, keep
-  your branch's version number, rebuild `plugins/chowa/dist/` fresh from
-  the merged source (don't just pick one side), then re-run `bun run
-  verify` before pushing again.
+- If the project uses a `develop` branch: `fix/*`, `feat/*`, `docs/*`,
+  `chore/*` etc. branch from `develop` and PR against `develop`; `release/*`
+  and `hotfix/*` branch from `develop` (a `hotfix/*` may branch from `main`
+  when patching a live incident) and PR from there to `main`. If the
+  project has no `develop` branch, branch from and PR against `main`
+  directly. Never push or PR straight to `main`/`master` outside that flow.
+- Always ask the user if they want a PR opened, whenever creating a new
+  branch and committing.
+- After opening a PR, check whether it's actually mergeable against its
+  base (`gh pr view <n> --json mergeable,mergeStateStatus`) — don't treat
+  "the PR exists" as "the PR is ready." A base branch that moved since you
+  branched (especially `develop` → `main` on a `release/*`/`hotfix/*` PR)
+  can leave it `CONFLICTING` with no error at creation time, and CI may
+  not even run until it's resolved. If so, merge the base branch into your
+  branch locally, resolve, push, and re-verify before calling the PR done.
+
+**`release/*` → `main` PRs in this repo routinely come back
+`CONFLICTING`**: `develop` never carries `plugins/chowa/dist/` (see the CI
+`no-bundle-off-main` job), so each release branch's own version bump and
+freshly-built bundle collide with whatever `main` already has from the
+*previous* release — every release branch from v0.2.1 through v0.5.0
+needed this same fixup. Expect it, don't debug it as a surprise: `git
+merge origin/main`, keep your branch's version number, rebuild
+`plugins/chowa/dist/` fresh from the merged source (don't just pick one
+side), then re-run `bun run verify` before pushing again.
 
 ### 3. Remote Update Checks
 
@@ -86,15 +102,26 @@ bun run src/cli.ts check-update
 bun run src/cli.ts commit
 ```
 
-If Chōwa reports multiple clusters, commit each cluster separately. Commits
-must follow Conventional Commits: `type(scope): concise imperative description`.
+Chōwa clusters the diff by file, which is a heuristic, not a verdict: if
+two reported clusters are one logical change (a doc and the index row
+pointing at it, a function and its test), commit them together. Splitting
+them would produce a commit that doesn't stand on its own.
+Commits must follow Conventional Commits: `type(scope): concise imperative
+description`.
 
 - Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `build`, `style`, `revert`
-- Scopes: `core`, `adapters`, `router`, `git`, `cli`, `integrations`
+- Scope: whatever the project uses (check recent `git log`, or an existing
+  `commitlint`/similar config).
+In Chōwa's own repo the scopes are `core`, `adapters`, `router`, `git`,
+`cli`, `integrations`.
 
 ### 5. Code Quality & Build Verification
 
-Before committing: `bun test`, `bun run check:imports`, `bun run build`.
+Before committing, run the *project's own* test/lint/build scripts —
+typically something like `test`, `lint`, `build` in its `package.json`
+`scripts`, or whatever the project's own tooling is. This workflow's own
+conventions (model routing, commit-splitting, or their absence) don't
+replace a project's own quality gates.
 
 ### 6. Model Routing
 
@@ -137,30 +164,29 @@ stdin and returns a `ClaudeCodeResponse` on stdout. See
 ### 9. Delegating Mechanical Sub-Tasks
 
 Not every step of a live pipeline needs the primary session's model. A
-sub-task qualifies for delegation only if, before delegating, you can state
-exactly what the correct output looks like (or exactly what mechanical rule
-to apply) — renames, formatting passes, boilerplate scaffolding, and the
-same shape of work `chowa commit`/`chowa pr` already delegate on your
-behalf (a rigid, checkable output generated from an already fully-specified
-input). If any part of "what should this become" is still an open design
-question, don't delegate — handle it inline.
+sub-task qualifies for delegation only if, before delegating, you can
+state exactly what the correct output looks like (or exactly what
+mechanical rule to apply) — renames, formatting passes, boilerplate
+scaffolding, and the same shape of work `chowa commit`/`chowa pr` already
+delegate on your behalf (a rigid, checkable output generated from an
+already fully-specified input). If any part of "what should this become"
+is still an open design question, don't delegate — handle it inline.
 
-Skip delegation for trivial one-line edits — the round-trip costs more than
-it saves. Delegate only when the mechanical work is large or repetitive
-enough (a multi-file rename sweep, a repo-wide formatting pass) that
-running it on a cheaper model is worth a subagent call.
+Skip delegation for trivial one-line edits — the round-trip costs more
+than it saves. Delegate only when the mechanical work is large or
+repetitive enough (a multi-file rename sweep, a repo-wide formatting pass)
+that running it on a cheaper model is worth a subagent call.
 
-To delegate, first resolve the target model — run
-`bun run src/cli.ts route --kind mechanical --complexity low` (the same
-profile `chowa commit`/`chowa pr` already use) and read `target.model` from
-its JSON output. Then invoke the `Agent` tool with `chowa-mechanical` as the
-subagent and that resolved value as an explicit `model:` override — this
-takes precedence over whatever the subagent definition's own frontmatter
-pins, so the actual model always reflects the live routing policy
-(`chowa.config.ts`) rather than a value hardcoded in the subagent file. Ask
-it to report back a structured summary of exactly what changed — not just
-"done" — so you don't need to re-read every touched file yourself. If the
-user has asked you to handle a specific step directly, that overrides
+To delegate, first resolve the target model — run `bun run src/cli.ts route --kind mechanical --complexity low` (the
+same profile `chowa commit`/`chowa pr` already use) and read `target.model` from its JSON output. Then invoke the
+`Agent` tool with `chowa-mechanical` as the subagent and that
+resolved value as an explicit `model:` override — this takes precedence
+over whatever the subagent definition's own frontmatter pins, so the
+actual model always reflects the live routing policy (`chowa.config.ts`)
+rather than a value hardcoded in the subagent file.
+Ask it to report back a structured summary of exactly what changed — not
+just "done" — so you don't need to re-read every touched file yourself. If
+the user has asked you to handle a specific step directly, that overrides
 delegation for that step only. If the subagent hits something needing
 judgment mid-task, expect it to stop and hand back rather than deciding on
 its own.
