@@ -72,16 +72,21 @@ lifecycle:
   branch and committing.
 - After opening a PR, check whether it's actually mergeable against its
   base (`gh pr view <n> --json mergeable,mergeStateStatus`) — don't treat
-  "the PR exists" as "the PR is ready." **`release/*` → `main` PRs in this
-  repo routinely come back `CONFLICTING`**: `develop` never carries
-  `plugins/chowa/dist/` (see the CI `no-bundle-off-main` job), so each
-  release branch's own version bump and freshly-built bundle collide with
-  whatever `main` already has from the *previous* release — every release
-  branch from v0.2.1 through v0.5.0 needed this same fixup. Expect it,
-  don't debug it as a surprise: `git merge origin/main`, keep your branch's
-  version number, rebuild `plugins/chowa/dist/` fresh from the merged
-  source (don't just pick one side), then re-run `bun run verify` before
-  pushing again.
+  "the PR exists" as "the PR is ready." A base branch that moved since you
+  branched (especially `develop` → `main` on a `release/*`/`hotfix/*` PR)
+  can leave it `CONFLICTING` with no error at creation time, and CI may
+  not even run until it's resolved. If so, merge the base branch into your
+  branch locally, resolve, push, and re-verify before calling the PR done.
+
+**`release/*` → `main` PRs in this repo routinely come back
+`CONFLICTING`**: `develop` never carries `plugins/chowa/dist/` (see the CI
+`no-bundle-off-main` job), so each release branch's own version bump and
+freshly-built bundle collide with whatever `main` already has from the
+*previous* release — every release branch from v0.2.1 through v0.5.0
+needed this same fixup. Expect it, don't debug it as a surprise: `git
+merge origin/main`, keep your branch's version number, rebuild
+`plugins/chowa/dist/` fresh from the merged source (don't just pick one
+side), then re-run `bun run verify` before pushing again.
 
 ### 3. Remote Update Checks
 
