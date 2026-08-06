@@ -1,6 +1,6 @@
 # Implementation Plan: Codebase Discovery & Architecture Investigation Skill (`chowa-discover`)
 
-**Status:** Draft  
+**Status:** Done  
 **Date:** 2026-08-06  
 **Spec Reference:** `specs/2026-08-06-reverse-engineering-skill/spec.md`  
 

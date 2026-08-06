@@ -1,6 +1,6 @@
 # Spec: Codebase Discovery & Architecture Investigation Skill (`chowa-discover`)
 
-**Status:** Draft  
+**Status:** Done  
 **Date:** 2026-08-06  
 **Author:** Antigravity / Fran  
 
