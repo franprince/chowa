@@ -377,13 +377,21 @@ This is the Claude Code variant of \`.agents/skills/chowa/SKILL.md\`, wired up
 through the \`ClaudeCodeBridge\` (\`src/integrations/claude-code/bridge.ts\`) and
 the \`chowa claude-code-bridge\` CLI command.
 
-> **This file is not the distributed skill.** It is project-local to Chōwa's
-> own source and governs work in *this* repository only, which is why it can
-> assume self-repo mode throughout. The skill users install lives at
-> \`plugins/chowa/skills/chowa/SKILL.md\` and is the canonical one;
-> \`.agents/skills/chowa/SKILL.md\` is generated from it by
-> \`bun run sync:skill\`. Workflow changes meant for users belong in the
-> canonical file, not here.
+> **This file is not the distributed skill, and it's generated too.** It is
+> project-local to Chōwa's own source and governs work in *this*
+> repository only, which is why it can assume self-repo mode throughout.
+> The skill users install lives at \`plugins/chowa/skills/chowa/SKILL.md\`
+> and is the canonical one; \`.agents/skills/chowa/SKILL.md\` is generated
+> from it. Both this file and the canonical one pull their shared workflow
+> sections (spec pipeline, branching, commits, quality, delegation, PR
+> description) from \`franprince/chowa-skill\`'s
+> \`templates/chowa-workflow.md\`, pinned to a commit SHA in
+> \`scripts/fetchSharedTemplate.ts\`. Running \`bun run sync:skill\`
+> regenerates all three files from that pin plus chowa-local overlay
+> content. Workflow changes meant for users go in chowa-skill's template
+> if they're shared, or directly in this file's skeleton
+> (\`scripts/sync-skill.ts\`) if they're chowa-only local content — never
+> by hand-editing the generated markdown files themselves.
 
 ## Workflow Rules
 
