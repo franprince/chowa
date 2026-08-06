@@ -14,6 +14,9 @@ describe('sync-skill', () => {
         '<!-- chowa:delegation:start -->',
         'DELEGATION CONTENT',
         '<!-- chowa:delegation:end -->',
+        '<!-- chowa:sdd:start -->',
+        'SDD CONTENT',
+        '<!-- chowa:sdd:end -->',
         '<!-- chowa:autoresume:start -->',
         'AUTORESUME CONTENT',
         '<!-- chowa:autoresume:end -->',
@@ -37,6 +40,9 @@ describe('sync-skill', () => {
         '<!-- chowa:delegation:start -->',
         'Use the Agent tool with the chowa-mechanical subagent.',
         '<!-- chowa:delegation:end -->',
+        '<!-- chowa:sdd:start -->',
+        'SDD CONTENT',
+        '<!-- chowa:sdd:end -->',
         '<!-- chowa:autoresume:start -->',
         'AUTORESUME CONTENT',
         '<!-- chowa:autoresume:end -->',
@@ -51,6 +57,33 @@ describe('sync-skill', () => {
       expect(portable).toContain('trailing prose');
     });
 
+    it('removes the marked sdd region entirely', () => {
+      const canonical = [
+        '# Heading',
+        '<!-- chowa:invocation:start -->',
+        'INVOCATION CONTENT',
+        '<!-- chowa:invocation:end -->',
+        '<!-- chowa:delegation:start -->',
+        'DELEGATION CONTENT',
+        '<!-- chowa:delegation:end -->',
+        '### 9. Executing Plans via Subagent-Driven Development',
+        '<!-- chowa:sdd:start -->',
+        'Use the superpowers:subagent-driven-development skill.',
+        '<!-- chowa:sdd:end -->',
+        '<!-- chowa:autoresume:start -->',
+        'AUTORESUME CONTENT',
+        '<!-- chowa:autoresume:end -->',
+        'trailing prose',
+      ].join('\n');
+
+      const portable = toPortable(canonical);
+
+      expect(portable).not.toContain('subagent-driven-development');
+      expect(portable).not.toContain('superpowers');
+      expect(portable).toContain('# Heading');
+      expect(portable).toContain('trailing prose');
+    });
+
     it('removes the marked autoresume region entirely', () => {
       const canonical = [
         '# Heading',
@@ -60,7 +93,10 @@ describe('sync-skill', () => {
         '<!-- chowa:delegation:start -->',
         'DELEGATION CONTENT',
         '<!-- chowa:delegation:end -->',
-        '### 9. Quota-Aware Session Auto-Resume',
+        '<!-- chowa:sdd:start -->',
+        'SDD CONTENT',
+        '<!-- chowa:sdd:end -->',
+        '### 10. Quota-Aware Session Auto-Resume',
         '<!-- chowa:autoresume:start -->',
         'Tracked via SessionStart/StopFailure hooks.',
         '<!-- chowa:autoresume:end -->',
@@ -75,12 +111,12 @@ describe('sync-skill', () => {
       expect(portable).toContain('trailing prose');
     });
 
-    it('collapses the blank-line runoff left by two adjacent stripped regions', () => {
-      // delegation and autoresume sit back-to-back in the canonical file,
-      // each surrounded by a blank line; stripping both in sequence used
-      // to leave 4 consecutive blank lines behind (one per side of each
-      // region) rather than the single blank line a normal section break
-      // gets.
+    it('collapses the blank-line runoff left by three adjacent stripped regions', () => {
+      // delegation, sdd, and autoresume sit back-to-back in the canonical
+      // file, each surrounded by a blank line; stripping all three in
+      // sequence used to leave a growing run of consecutive blank lines
+      // behind (one per side of each region) rather than the single blank
+      // line a normal section break gets.
       const canonical = [
         '<!-- chowa:invocation:start -->',
         'INVOCATION CONTENT',
@@ -95,6 +131,10 @@ describe('sync-skill', () => {
         '<!-- chowa:delegation:start -->',
         'DELEGATION CONTENT',
         '<!-- chowa:delegation:end -->',
+        '',
+        '<!-- chowa:sdd:start -->',
+        'SDD CONTENT',
+        '<!-- chowa:sdd:end -->',
         '',
         '<!-- chowa:autoresume:start -->',
         'AUTORESUME CONTENT',
@@ -144,6 +184,16 @@ describe('sync-skill', () => {
       expect(toPortable(canonical)).not.toContain('chowa-mechanical');
     });
 
+    it('never leaks the subagent-driven-development mention into the portable copy', () => {
+      // Gemini/Antigravity has no Agent-tool/subagent equivalent, same as
+      // the mechanical-delegation section — the whole section must be
+      // absent, not just half-translated.
+      const canonical = readFileSync(CANONICAL_SKILL, 'utf-8');
+
+      expect(canonical).toContain('subagent-driven-development');
+      expect(toPortable(canonical)).not.toContain('subagent-driven-development');
+    });
+
     it('never leaks the SessionStart/StopFailure hooks into the portable copy', () => {
       // Gemini/Antigravity has no Claude-Code-hook equivalent — the whole
       // auto-resume section must be absent, not just half-translated.
@@ -178,6 +228,19 @@ describe('sync-skill', () => {
       expect(() => toPortable(missingDelegation)).toThrow(/delegation region markers/);
     });
 
+    it('throws when the sdd markers are missing', () => {
+      const missingSdd = [
+        '<!-- chowa:invocation:start -->',
+        'x',
+        '<!-- chowa:invocation:end -->',
+        '<!-- chowa:delegation:start -->',
+        'y',
+        '<!-- chowa:delegation:end -->',
+      ].join('\n');
+
+      expect(() => toPortable(missingSdd)).toThrow(/sdd region markers/);
+    });
+
     it('throws when the autoresume markers are missing', () => {
       const missingAutoresume = [
         '<!-- chowa:invocation:start -->',
@@ -186,6 +249,9 @@ describe('sync-skill', () => {
         '<!-- chowa:delegation:start -->',
         'y',
         '<!-- chowa:delegation:end -->',
+        '<!-- chowa:sdd:start -->',
+        'z',
+        '<!-- chowa:sdd:end -->',
       ].join('\n');
 
       expect(() => toPortable(missingAutoresume)).toThrow(/autoresume region markers/);

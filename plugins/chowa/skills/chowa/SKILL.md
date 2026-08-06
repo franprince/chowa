@@ -209,8 +209,29 @@ step only. If the subagent hits something needing judgment mid-task, expect
 it to stop and hand back rather than deciding on its own.
 <!-- chowa:delegation:end -->
 
+<!-- chowa:sdd:start -->
+### 9. Executing Plans via Subagent-Driven Development
+
+For an approved implementation plan with several mostly-independent tasks,
+prefer executing Stage 3 through the `superpowers:subagent-driven-development`
+skill, when the `superpowers` plugin is installed, rather than implementing
+every task inline in this session: a fresh implementer subagent per task, a
+review gate after each, and one whole-branch review at the end. Load it
+explicitly (`Skill` tool, `superpowers:subagent-driven-development`) once
+the plan is approved and you're ready to begin Stage 3.
+
+This isn't a fit for every plan. Skip it — implement inline as before —
+when tasks are tightly coupled (that skill's own guidance routes tightly
+coupled work back to manual execution), the plan is small enough that
+per-task subagent dispatch overhead isn't worth it, or the `superpowers`
+plugin isn't installed. When it does fit, that skill's own ledger and
+review-loop process takes over from here; this skill's spec → plan →
+execute pipeline stays the outer frame — the plan it executes is still the
+one written and approved under §1.
+<!-- chowa:sdd:end -->
+
 <!-- chowa:autoresume:start -->
-### 9. Quota-Aware Session Auto-Resume
+### 10. Quota-Aware Session Auto-Resume
 
 Chōwa tracks every session's lifecycle automatically via `SessionStart`/
 `StopFailure` hooks — there is nothing for you to invoke. When a session
