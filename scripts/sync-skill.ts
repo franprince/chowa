@@ -5,11 +5,13 @@
  * `plugins/chowa/skills/chowa/SKILL.md` is the canonical skill. Harnesses
  * without a plugin system (Gemini, Antigravity) read
  * `.agents/skills/chowa/SKILL.md` instead, which must say the same thing
- * with three exceptions, each Claude-Code-specific and marked accordingly:
+ * with four exceptions, each Claude-Code-specific and marked accordingly:
  * the invocation section (names `${CLAUDE_PLUGIN_ROOT}`), the mechanical
- * sub-task delegation section (names the `Agent` tool and a subagent), and
- * the quota-aware auto-resume section (names the `SessionStart`/
- * `StopFailure` hooks) — none has a Gemini/Antigravity equivalent.
+ * sub-task delegation section (names the `Agent` tool and a subagent), the
+ * subagent-driven-development section (names the `Agent` tool and the
+ * `superpowers` plugin), and the quota-aware auto-resume section (names
+ * the `SessionStart`/`StopFailure` hooks) — none has a Gemini/Antigravity
+ * equivalent.
  *
  * Rather than maintain two documents and let them drift — the failure this
  * whole distribution effort exists to fix — the portable copy is generated
@@ -67,6 +69,14 @@ const REGION_SWAPS: readonly RegionSwap[] = [
     label: 'delegation',
     start: '<!-- chowa:delegation:start -->',
     end: '<!-- chowa:delegation:end -->',
+    // No Agent-tool/subagent equivalent on Gemini/Antigravity — omit the
+    // section entirely rather than ship a dangling half-instruction.
+    replacement: '',
+  },
+  {
+    label: 'sdd',
+    start: '<!-- chowa:sdd:start -->',
+    end: '<!-- chowa:sdd:end -->',
     // No Agent-tool/subagent equivalent on Gemini/Antigravity — omit the
     // section entirely rather than ship a dangling half-instruction.
     replacement: '',
