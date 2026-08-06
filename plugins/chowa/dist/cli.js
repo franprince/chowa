@@ -11110,6 +11110,7 @@ async function handleCommit(configPath) {
 `);
   }
 }
+var PR_SIGNATURE = "調和 (Chōwa) — spec → plan → execute, verified before merge";
 async function handlePR(baseBranch, configPath) {
   const { GitOps: GitOps2 } = await Promise.resolve().then(() => (init_gitOps(), exports_gitOps));
   const { generatePRDescription: generatePRDescription2 } = await Promise.resolve().then(() => (init_prDescription(), exports_prDescription));
@@ -11152,6 +11153,8 @@ ${pr.rolloutNotes}
 ${pr.rolloutPlan}
 `);
   }
+  console.log(`---
+${PR_SIGNATURE}`);
 }
 async function handleAntigravityBridge(configPath) {
   const { AntigravityBridge: AntigravityBridge2 } = await Promise.resolve().then(() => (init_bridge(), exports_bridge));
@@ -11386,3 +11389,6 @@ main().catch((error) => {
   console.error("Fatal error:", error);
   process.exitCode = 1;
 });
+export {
+  PR_SIGNATURE
+};
