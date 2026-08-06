@@ -1,4 +1,4 @@
-# Spec: Reverse Engineering & Architecture Investigation Skill (`chowa-reverse-engineer`)
+# Spec: Codebase Discovery & Architecture Investigation Skill (`chowa-discover`)
 
 **Status:** Draft  
 **Date:** 2026-08-06  
@@ -13,22 +13,22 @@ When initiating feature development or refactoring in an existing codebase, AI c
 2. Breaking implicit contracts between layers (e.g., adapter vs. core vs. router boundaries).
 3. Drafted `spec.md` and `implementation_plan.md` files that ignore existing architectural debt or fragile integrations.
 
-Currently, Chōwa provides a robust 3-stage feature development pipeline (Spec → Plan → Execute), but lacks a dedicated, standardized pre-planning investigation skill to reverse-engineer project architecture and produce structured feedback specifically consumable by Chōwa's Stage 1 (`spec.md`) and Stage 2 (`implementation_plan.md`).
+Currently, Chōwa provides a robust 3-stage feature development pipeline (Spec → Plan → Execute), but lacks a dedicated, standardized pre-planning investigation skill to discover project architecture and produce structured feedback specifically consumable by Chōwa's Stage 1 (`spec.md`) and Stage 2 (`implementation_plan.md`).
 
 ---
 
 ## 2. Goals & Non-Goals
 
 ### Goals
-- **Systematic Codebase Audit**: Define a specialized skill (`chowa-reverse-engineer`) that performs structured reverse engineering of unfamiliar or complex codebases.
+- **Systematic Codebase Audit**: Define a specialized skill (`chowa-discover`) that performs structured discovery of unfamiliar or complex codebases.
 - **Architectural Extraction**: Automatically discover component hierarchies, module boundaries, entry points, configuration schemas, dependency graphs, state flows, and error handling patterns.
 - **Planner-Compatible Feedback Output**: Produce a standardized `ARCHITECTURE_PROFILE.md` (or inline context summary) formatted explicitly for Chōwa's main spec generator and implementation planner.
-- **Spec & Plan Integration**: Enhance Stage 1 (`spec.md`) and Stage 2 (`implementation_plan.md`) workflows so that feature specifications reference and respect the reverse-engineered architectural profile.
+- **Spec & Plan Integration**: Enhance Stage 1 (`spec.md`) and Stage 2 (`implementation_plan.md`) workflows so that feature specifications reference and respect the discovered architectural profile.
 - **Harness Portability**: Ship the skill across all supported Chōwa targets (Claude Code plugin bundle, self-hosted `.claude/skills/`, and portable `.agents/skills/`).
 
 ### Non-Goals
 - Replacing runtime debugging tools or memory profilers.
-- Refactoring or writing feature code directly inside the reverse engineering skill (the skill is strictly read-only and analytical).
+- Refactoring or writing feature code directly inside the discovery skill (the skill is strictly read-only and analytical).
 - Generating full UML/documentation sites for external publishing (focus is actionable developer/AI context for planning).
 
 ---
@@ -37,7 +37,7 @@ Currently, Chōwa provides a robust 3-stage feature development pipeline (Spec �
 
 ```mermaid
 flowchart TD
-    A["User Request: New Feature / Audit"] --> B["Stage 0: chowa-reverse-engineer Skill"]
+    A["User Request: New Feature / Audit"] --> B["Stage 0: chowa-discover Skill"]
     B --> C["1. Entry Point & Config Scan"]
     B --> D["2. Dependency & Component Mapping"]
     B --> E["3. Pattern & Data Flow Extraction"]
@@ -67,7 +67,7 @@ flowchart TD
 ## 4. Input & Output Schemas
 
 ### Input Parameters
-When invoked manually or via subagent, `chowa-reverse-engineer` accepts:
+When invoked manually or via subagent, `chowa-discover` accepts:
 - `target_path` *(optional)*: Subdirectory or root path to analyze (defaults to project root).
 - `focus_area` *(optional)*: Specific module, subsystem, or feature area of interest (e.g., `routing`, `auth`, `state-management`).
 - `depth` *(optional)*: Level of analysis (`quick_overview`, `standard`, `deep_audit`). Default is `standard`.
@@ -108,12 +108,12 @@ When invoked manually or via subagent, `chowa-reverse-engineer` accepts:
 ## 5. Acceptance Criteria
 
 1. **Skill Definition**:
-   - A dedicated `chowa-reverse-engineer` skill template exists in `franprince/chowa-skill` (and is generated for canonical, self-hosted, and portable targets).
+   - A dedicated `chowa-discover` skill template exists in `franprince/chowa-skill` (and is generated for canonical, self-hosted, and portable targets).
 2. **Analysis Methodology**:
    - Clear guidelines instructing agents to systematically inspect config files, entry points, module exports, and test suites without making arbitrary assumptions.
 3. **Structured Output**:
    - Produces a standardized `specs/ARCHITECTURE_PROFILE.md` file adhering to the defined schema.
 4. **Integration with Chōwa Pipeline**:
-   - Main `chowa` skill updated to recommend executing `chowa-reverse-engineer` when starting work on complex/unfamiliar projects prior to Stage 1 `spec.md`.
+   - Main `chowa` skill updated to recommend executing `chowa-discover` when starting work on complex/unfamiliar projects prior to Stage 1 `spec.md`.
 5. **Verification**:
    - Unit and template sync tests pass via `bun run verify`.
