@@ -5,10 +5,14 @@ import {
   toPortable,
   buildCanonical,
   buildSelfHosted,
+  buildDiscoverSkill,
   generateAll,
   CANONICAL_SKILL,
   SELF_HOSTED_SKILL,
   PORTABLE_SKILL,
+  DISCOVER_CANONICAL_SKILL,
+  DISCOVER_SELF_HOSTED_SKILL,
+  DISCOVER_PORTABLE_SKILL,
 } from '../../scripts/sync-skill.js';
 import { extractSections } from '../../scripts/renderSharedVariant.js';
 
@@ -398,5 +402,42 @@ describe('sync-skill', () => {
 
   it('SELF_HOSTED_SKILL points at the self-hosted skill path', () => {
     expect(SELF_HOSTED_SKILL).toMatch(/\.claude\/skills\/chowa\/SKILL\.md$/);
+  });
+
+  it('recommends chowa-discover ahead of Stage 1 in both generated skills', () => {
+    const sections = extractSections(
+      FIXTURE_TEMPLATE.replace(
+        /<!-- variant:chowa-skill-only -->[\s\S]*?<!-- variant:end -->\n?/g,
+        '',
+      ).replace(/<!-- variant:(?:shared|chowa-only) -->\n?([\s\S]*?)<!-- variant:end -->\n?/g, '$1'),
+    );
+
+    expect(buildCanonical(sections)).toContain('chowa-discover');
+    expect(buildSelfHosted(sections)).toContain('chowa-discover');
+  });
+
+  describe('buildDiscoverSkill', () => {
+    it('reads the harness-agnostic chowa-discover source', () => {
+      const discover = buildDiscoverSkill();
+
+      expect(discover).toContain('name: chowa-discover');
+      expect(discover).toContain('ARCHITECTURE_PROFILE.md');
+    });
+
+    it('DISCOVER_* paths point at the three distribution targets', () => {
+      expect(DISCOVER_CANONICAL_SKILL).toMatch(
+        /plugins\/chowa\/skills\/chowa-discover\/SKILL\.md$/,
+      );
+      expect(DISCOVER_SELF_HOSTED_SKILL).toMatch(/\.claude\/skills\/chowa-discover\/SKILL\.md$/);
+      expect(DISCOVER_PORTABLE_SKILL).toMatch(/\.agents\/skills\/chowa-discover\/SKILL\.md$/);
+    });
+
+    it('the three committed discover skill copies are byte-identical to the generated source', () => {
+      const expected = buildDiscoverSkill();
+
+      expect(readFileSync(DISCOVER_CANONICAL_SKILL, 'utf-8')).toBe(expected);
+      expect(readFileSync(DISCOVER_SELF_HOSTED_SKILL, 'utf-8')).toBe(expected);
+      expect(readFileSync(DISCOVER_PORTABLE_SKILL, 'utf-8')).toBe(expected);
+    });
   });
 });
