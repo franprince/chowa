@@ -29,6 +29,12 @@
  * edit that isn't synced (here or in chowa-skill's own template) fails
  * the build.
  *
+ * `chowa-discover` (the codebase discovery skill) is synced the same way,
+ * but far more simply: it has no per-harness content (no `chowa <command>`
+ * invocations, no Agent-tool-only sections), so all three targets are
+ * byte-identical copies of `scripts/content/chowa-discover-skill.md` — no
+ * template fetch or region-swap needed.
+ *
  * Usage:
  *   bun run scripts/sync-skill.ts          # write all three skill files
  *   bun run scripts/sync-skill.ts --check  # exit 1 if any would change
@@ -45,6 +51,19 @@ const repoRoot = resolve(import.meta.dirname, '..');
 export const CANONICAL_SKILL = join(repoRoot, 'plugins/chowa/skills/chowa/SKILL.md');
 export const SELF_HOSTED_SKILL = join(repoRoot, '.claude/skills/chowa/SKILL.md');
 export const PORTABLE_SKILL = join(repoRoot, '.agents/skills/chowa/SKILL.md');
+
+const DISCOVER_SKILL_SOURCE = join(repoRoot, 'scripts/content/chowa-discover-skill.md');
+export const DISCOVER_CANONICAL_SKILL = join(
+  repoRoot,
+  'plugins/chowa/skills/chowa-discover/SKILL.md',
+);
+export const DISCOVER_SELF_HOSTED_SKILL = join(repoRoot, '.claude/skills/chowa-discover/SKILL.md');
+export const DISCOVER_PORTABLE_SKILL = join(repoRoot, '.agents/skills/chowa-discover/SKILL.md');
+
+/** Reads the single source of truth for `chowa-discover`'s (harness-agnostic) body. */
+export function buildDiscoverSkill(): string {
+  return readFileSync(DISCOVER_SKILL_SOURCE, 'utf-8');
+}
 
 /**
  * The invocation section for harnesses that have no plugin root to resolve.
@@ -228,6 +247,11 @@ that (a \`chowa.config.js\` works on any version). If neither \`bun\` nor
 
 ### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
 
+For an unfamiliar or complex codebase, run the \`chowa-discover\` skill
+before drafting Stage 1: it audits tech stack, repo customs, layer
+boundaries, and technical debt into \`specs/ARCHITECTURE_PROFILE.md\`, which
+Stage 1 and Stage 2 below should reference and respect when present.
+
 ${s('Specification-Driven Pipeline (Spec → Plan → Execute)')}
 
 ### 2. Branching & PR Workflow
@@ -399,6 +423,11 @@ When making changes to this codebase, **always follow these conventions**:
 
 ### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
 
+For an unfamiliar or complex codebase, run the \`chowa-discover\` skill
+before drafting Stage 1: it audits tech stack, repo customs, layer
+boundaries, and technical debt into \`specs/ARCHITECTURE_PROFILE.md\`, which
+Stage 1 and Stage 2 below should reference and respect when present.
+
 ${s('Specification-Driven Pipeline (Spec → Plan → Execute)')}
 
 ### 2. Branching & PR Workflow
@@ -533,11 +562,15 @@ export async function generateAll(
 async function main(): Promise<void> {
   const checkOnly = process.argv.includes('--check');
   const { canonical, selfHosted, portable } = await generateAll();
+  const discover = buildDiscoverSkill();
 
   const targets: readonly [label: string, path: string, content: string][] = [
     ['canonical', CANONICAL_SKILL, canonical],
     ['self-hosted', SELF_HOSTED_SKILL, selfHosted],
     ['portable', PORTABLE_SKILL, portable],
+    ['discover canonical', DISCOVER_CANONICAL_SKILL, discover],
+    ['discover self-hosted', DISCOVER_SELF_HOSTED_SKILL, discover],
+    ['discover portable', DISCOVER_PORTABLE_SKILL, discover],
   ];
 
   if (checkOnly) {
@@ -553,7 +586,7 @@ async function main(): Promise<void> {
       console.error('   Run: bun run sync:skill');
       process.exit(1);
     }
-    console.log('✅ All three skill files are in sync with the shared template.');
+    console.log('✅ All skill files are in sync with the shared template.');
     return;
   }
 

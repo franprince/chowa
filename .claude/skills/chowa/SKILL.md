@@ -37,6 +37,11 @@ When making changes to this codebase, **always follow these conventions**:
 
 ### 1. Specification-Driven Pipeline (Spec → Plan → Execute)
 
+For an unfamiliar or complex codebase, run the `chowa-discover` skill
+before drafting Stage 1: it audits tech stack, repo customs, layer
+boundaries, and technical debt into `specs/ARCHITECTURE_PROFILE.md`, which
+Stage 1 and Stage 2 below should reference and respect when present.
+
 For all feature requests and non-trivial changes, follow this 3-stage
 lifecycle:
 
